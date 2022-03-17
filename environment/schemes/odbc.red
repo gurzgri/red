@@ -439,6 +439,9 @@ odbc: context [
 
 		ODBC_DIAGNOSIS(sql/handle-dbc sqlhdbc connection)
 
+		block/rs-append-block as red-block! (object/get-values environment) + odbc/common-field-errors
+							  as red-block! (object/get-values connection ) + odbc/common-field-errors
+
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
