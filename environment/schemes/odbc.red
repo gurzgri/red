@@ -486,7 +486,7 @@ odbc: context [
 			type        [red-word!]
 			value       [red-value!]
 	][
-	;#if debug? = yes [print ["PICK-METADATA [" lf]]
+		#if debug? = yes [print ["PICK-METADATA [" lf]]
 
 		intptr: declare int-ptr!
 
@@ -509,7 +509,7 @@ odbc: context [
 												  buflen
 												 :outlen
 
-				;#if debug? = yes [print ["^-SQLGetEnvAttr(" info ") " rc lf]]
+					#if debug? = yes [print ["^-SQLGetEnvAttr(" info ") " rc lf]]
 				]
 				all [
 					sym = odbc/_connection
@@ -521,7 +521,7 @@ odbc: context [
 													  buflen
 													 :outlen
 
-				;#if debug? = yes [print ["^-SQLGetConnectAttr(" info ") " rc lf]]
+					#if debug? = yes [print ["^-SQLGetConnectAttr(" info ") " rc lf]]
 				]
 				all [
 					sym = odbc/_connection
@@ -533,7 +533,7 @@ odbc: context [
 											   buflen
 											  :outlen
 
-				;#if debug? = yes [print ["^-SQLGetInfo(" info ") " rc lf]]
+					#if debug? = yes [print ["^-SQLGetInfo(" info ") " rc lf]]
 				]
 				sym = odbc/_statement [
 					ODBC_RESULT sql/SQLGetStmtAttr hndl/value
@@ -542,7 +542,7 @@ odbc: context [
 												   buflen
 												  :outlen
 
-				;#if debug? = yes [print ["^-SQLGetStmtAttr(" info ") " rc lf]]
+					#if debug? = yes [print ["^-SQLGetStmtAttr(" info ") " rc lf]]
 				]
 			]
 
@@ -618,6 +618,8 @@ odbc: context [
 				info = sql/user-name
 				info = sql/xopen-cli-year
 			][
+				#if debug? = yes [odbc/print-buffer buffer outlen]
+
 				SET_RETURN((string/load as c-string! buffer outlen UTF-8))
 			][
 				intptr: as int-ptr! buffer
@@ -627,7 +629,7 @@ odbc: context [
 
 		free buffer
 
-	;#if debug? = yes [print ["]" lf]]
+		#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -3306,7 +3308,7 @@ odbc: context [
 			collect some [
 				set info integer!
 				set name string! (
-				;if debug-odbc? [print ["info:" info name]]
+					if debug-odbc? [print ["info:" info name]]
 
 					info: pick-information connection info
 				)
