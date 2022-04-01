@@ -2479,7 +2479,7 @@ sql: context [
 			return:                 [integer!]
 		]
 
-		SQLGetInfo: "SQLGetInfo" [
+		SQLGetInfo: "SQLGetInfoW" [
 			connection              [integer!]
 			infotype                [integer!]
 			infovalue               [byte-ptr!]
@@ -2497,7 +2497,7 @@ sql: context [
 			return:                 [integer!]
 		]
 
-		SQLGetTypeInfo: "SQLGetTypeInfo" [
+		SQLGetTypeInfo: "SQLGetTypeInfoW" [
 			statement               [integer!]
 			datatype                [integer!]
 			return:                 [integer!]

@@ -620,7 +620,7 @@ odbc: context [
 			][
 				#if debug? = yes [odbc/print-buffer buffer outlen]
 
-				SET_RETURN((string/load as c-string! buffer outlen UTF-8))
+				SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
 			][
 				intptr: as int-ptr! buffer
 				SET_RETURN((integer/box intptr/value))
