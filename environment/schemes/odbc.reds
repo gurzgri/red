@@ -2919,11 +2919,14 @@ odbc: context [
 				integer/make-in                                 errors native
 				string/load-in as c-string! message message-len errors UTF-16LE
 
-				#if debug? = yes [print [state/1 state/3 state/5 state/7 state/9 lf]]
+				#if debug? = yes [
+					print-buffer message message-len << 1
 
-				print-wstring as c-string! state prin " "
-				print [native " "]
-				print-wstring as c-string! message print ["" lf]
+					print-wstring as c-string! state
+					prin [" " native " " lf]
+					print-wstring as c-string! message
+					prin [lf]
+				]
 			]
 
 			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
