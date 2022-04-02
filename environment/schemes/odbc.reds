@@ -2713,6 +2713,7 @@ odbc: context [
 		stmt-field-rows-fetched
 		stmt-field-port
 		stmt-field-cursor
+		stmt-field-debug?
 
 		col-field-name:             0
 		col-field-sql-type

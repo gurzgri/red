@@ -74,6 +74,7 @@ odbc: context [
 		rows-fetched:   none
 		port:           none
 		cursor:        'forward
+		debug?:         off
 
 		on-change*:     func [word old new] [switch word [
 			scroll? [set-cursor-scrolling self old new]
@@ -1970,6 +1971,7 @@ odbc: context [
 			col-size    [integer!]
 			cols        [integer!]
 			columns     [red-block!]
+			debug       [red-logic!]
 			dt          [sql-date!]
 			digits      [integer!]
 			fetched     [red-handle!]
@@ -2007,6 +2009,7 @@ odbc: context [
 		window:         integer/get values + odbc/stmt-field-window
 		fetched:     as red-handle! values + odbc/stmt-field-rows-fetched
 		status:      as red-handle! values + odbc/stmt-field-rows-status
+		debug:        as red-logic! values + odbc/stmt-field-debug?
 
 		flat?:                      values + odbc/common-field-flat?
 		if TYPE_OF(flat?) = TYPE_NONE [
@@ -2058,16 +2061,16 @@ odbc: context [
 
 			#if debug? = yes [print ["^-fetched: " as byte-ptr! fetched/value " (" rows/value " rows) " lf]]
 
-		;#if debug? = yes [
-		;    c: 0
-		;    loop cols [
-		;        offset: c * odbc/col-field-fields
-		;        c: c + 1
-		;        buffer:  as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
-		;        buflen:     integer/get block/rs-abs-at columns offset + odbc/col-field-buffer-len
-		;        odbc/print-buffer as byte-ptr! buffer/value buflen * rows/value
-		;    ]
-		;]
+			if debug/value [
+				c: 0
+				loop cols [
+					offset: c * odbc/col-field-fields
+					c: c + 1
+					buffer:  as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
+					buflen:     integer/get block/rs-abs-at columns offset + odbc/col-field-buffer-len
+					odbc/print-buffer as byte-ptr! buffer/value buflen * rows/value
+				]
+			]
 
 			r: 0
 			loop rows/value [
