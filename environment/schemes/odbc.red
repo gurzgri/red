@@ -1818,8 +1818,8 @@ odbc: context [
 					sql-type = sql/varchar
 					sql-type = sql/longvarchar
 				][
-					c-type: sql/c-char
-					buflen: col-size + 1
+					c-type: sql/c-wchar
+					buflen: col-size + 1 << 1
 				]
 				any [
 					sql-type = sql/decimal
@@ -2115,7 +2115,7 @@ odbc: context [
 							sql-type = sql/varchar
 							sql-type = sql/char
 						][
-							string/load-in as c-string! bufrow length/value row UTF-8
+							string/load-in as c-string! bufrow length/value >> 1 row UTF-16LE
 						]
 						any [
 							sql-type = sql/decimal
