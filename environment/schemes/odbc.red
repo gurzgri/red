@@ -2455,11 +2455,15 @@ odbc: context [
 	as-column: function [column [string!]] [
 		upper: charset [#"A" - #"Z" #"À" - #"Ö" #"Ø" - #"Þ"]
 		lower: charset [#"a" - #"z" #"ß" - #"ö" #"ø" - #"ÿ"]
+		char:  union upper lower
+		digit: charset "1234567890"
 		parse/case column: system/words/copy column [
 			any [
 				change ["_" | "." | " "] "-"
-			|   here: upper upper lower (here: system/words/change/part here rejoin [here/1 here/2 "-" here/3] 3) :here
-			|   here: lower upper       (here: system/words/change/part here rejoin [here/1 "-" here/2] 2) :here
+			|   here: upper upper lower
+				(here: system/words/change/part here rejoin [here/1 here/2 "-" here/3] 3) :here
+			|   here: [lower upper | char digit | digit char]
+				(here: system/words/back system/words/change/part here rejoin [here/1 "-" here/2] 2) :here
 			|   skip
 			]
 		]
