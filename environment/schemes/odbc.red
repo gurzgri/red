@@ -2431,12 +2431,23 @@ odbc: context [
 		if debug-odbc? [print "describe-columns"]
 
 		if zero? cols: count-columns statement [
-			return affected-rows statement
+			return affected-rows statement				;-- exit early with # rows
 		]
 
-		statement/columns: bind-columns statement cols
+		statement/columns: columns: bind-columns statement cols
 
-		new-line/all extract statement/columns 8 off    ;-- 8 = odbc/col-field-fields
+		;-- translate column names, return words
+
+		words: collect [until [
+			keep any [
+				attempt [to word! column: as-column first columns]
+				column
+			]
+			system/words/tail? columns: system/words/skip columns 8
+														;-- 8 = odbc/col-field-fields
+		]]
+
+		new-line/all words off
 	]
 
 
@@ -3572,12 +3583,7 @@ odbc: context [
 				]
 
 				execute-statement statement/state
-				result: describe-columns statement/state
-
-				either number? result [result] [collect [forall result [        ;-- column titles
-					column: as-column first result
-					keep any [attempt [to word! column] column]
-				]]]
+				describe-columns statement/state
 			]
 			all [statement any [
 				word? sql
