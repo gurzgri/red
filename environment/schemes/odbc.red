@@ -29,7 +29,13 @@ odbc: context [
 		login-timeout:  none
 
 		drivers:        does [do reduce [get-drivers]]
-		sources:        does [do reduce [get-sources]]
+		sources:        function [/user /system] [
+			do reduce case [
+				user    [[get-sources/user]]
+				system  [[get-sources/system]]
+				/else   [[get-sources]]
+			]
+		]
 
 		on-change*:     func [word old new] [switch word [
 			login-timeout [any [
@@ -3452,8 +3458,8 @@ odbc: context [
 
 		init-odbc
 		sources: list-sources environment any [
-			pick [user] user
-			pick [system] system
+			all [user 'user]
+			all [system 'system]
 			'all
 		]
 		free-odbc
