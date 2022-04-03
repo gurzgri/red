@@ -2495,17 +2495,6 @@ odbc: context [
 	]
 
 
-	;------------------------------ about-environment --
-	;
-
-	environment-attrs: [
-		00200 "SQL_ATTR_ODBC_VERSION"        integer!
-		00201 "SQL_ATTR_CONNECTION_POOLING"  ;SQLUINTEGER
-		00202 "SQL_ATTR_CP_MATCH"            ;SQLUINTEGER
-		10001 "SQL_ATTR_OUTPUT_NTS"          logic!
-	]
-
-
 	;------------------------------- connection-infos --
 	;
 
@@ -3342,78 +3331,6 @@ odbc: context [
 				]
 			]
 		] 2
-	]
-
-
-	;------------------------------- connection-attrs --
-	;
-
-	connection-attrs: [
-		00004 "SQL_ATTR_ASYNC_ENABLE"
-		00101 "SQL_ATTR_ACCESS_MODE"
-		00102 "SQL_ATTR_AUTOCOMMIT"
-		00103 "attr-login-timeout"
-		00104 "SQL_ATTR_TRACE"
-		00105 "SQL_ATTR_TRACEFILE"
-		00106 "SQL_ATTR_TRANSLATE_LIB"
-		00107 "SQL_ATTR_TRANSLATE_OPTION"
-		00108 "SQL_ATTR_TXN_ISOLATION"
-		00109 "SQL_ATTR_CURRENT_CATALOG"
-		00110 "SQL_ATTR_ODBC_CURSORS"
-		00111 "SQL_ATTR_QUIET_MODE"
-		00112 "SQL_ATTR_PACKET_SIZE"
-		00113 "SQL_ATTR_CONNECTION_TIMEOUT"
-		00114 "SQL_ATTR_DISCONNECT_BEHAVIOR"
-		00117 "SQL_ATTR_ASYNC_DBC_FUNCTIONS_ENABLE"
-		00119 "SQL_ATTR_ASYNC_DBC_EVENT"
-		01207 "SQL_ATTR_ENLIST_IN_DTC"
-		01208 "SQL_ATTR_ENLIST_IN_XA"
-		01209 "SQL_ATTR_CONNECTION_DEAD"
-		10001 "SQL_ATTR_AUTO_IPD"
-		10014 "SQL_ATTR_METADATA_ID"
-	]
-
-
-	;-------------------------------- statement-attrs --
-	;
-
-	statement-attrs: [
-		00000 "SQL_ATTR_QUERY_TIMEOUT"                  ;SQLULEN
-		00001 "SQL_ATTR_MAX_ROWS"                       ;integer! "window size"
-		00002 "SQL_ATTR_NOSCAN"                         ;logic! "scan SQL strings for escape sequences (default OFF)"
-		00003 "SQL_ATTR_MAX_LENGTH"                     ;integer! "maximum amount of data that the driver returns from a character or binary column"
-		00004 "SQL_ATTR_ASYNC_ENABLE"                   ;logic! "whether a function called with the specified statement is executed asynchronously"
-		00005 "SQL_ATTR_ROW_BIND_TYPE"                  ;[0 bind-by-column]
-		00006 "SQL_ATTR_CURSOR_TYPE"                    ;before-preparation [0 forward-only 1 keyset-driven 2 dynamic 3 static] "specifies the cursor type"
-		00007 "SQL_ATTR_CONCURRENCY"                    ;[1 read-only "(default)" 2 lock 3 rowver 4 values] "specifies the cursor concurrency"
-		00008 "SQL_ATTR_KEYSET_SIZE"                    ;SQLULEN "pecifies the number of rows in the keyset for a keyset-driven cursor"
-		00011 "SQL_ATTR_RETRIEVE_DATA"                  ;logic!
-		00010 "SQL_ATTR_SIMULATE_CURSOR"                ;[0 non-unique 1 try-unique 2 unique] "whether drivers that simulate positioned update and delete statements guarantee that such statements affect only one single row"
-		00012 "SQL_ATTR_USE_BOOKMARKS"                  ;[0 off 1 on 2 variable] "whether an application will use bookmarks with a cursor"
-		00014 "SQL_ATTR_ROW_NUMBER"                     ;read-only SQLULEN "number of the current row in the entire result set (or zero, if unretrievable)"
-		00015 "SQL_ATTR_ENABLE_AUTO_IPD"                ;logic! "whether automatic population of the IPD is performed"
-		00016 "SQL_ATTR_FETCH_BOOKMARK_PTR"             ;handle!
-		00017 "SQL_ATTR_PARAM_BIND_OFFSET_PTR"          ;handle!
-		00018 "SQL_ATTR_PARAM_BIND_TYPE"                ;[0 param-bind-by-column]
-		00019 "SQL_ATTR_PARAM_OPERATION_PTR"            ;handle!
-		00020 "SQL_ATTR_PARAM_STATUS_PTR"               ;handle!
-		00021 "SQL_ATTR_PARAMS_PROCESSED_PTR"           ;handle!
-		00022 "SQL_ATTR_PARAMSET_SIZE"                  ;SQLULEN "specifies the number of values for each parameter"
-		00023 "SQL_ATTR_ROW_BIND_OFFSET_PTR"            ;handle!
-		00024 "SQL_ATTR_ROW_OPERATION_PTR"              ;handle!
-		00025 "SQL_ATTR_ROW_STATUS_PTR"                 ;handle!
-		00026 "SQL_ATTR_ROWS_FETCHED_PTR"               ;handle!
-		00027 "SQL_ATTR_ROW_ARRAY_SIZE"                 ;SQLULEN "specifies the number of rows returned by each call to SQLFetch or SQLFetchScroll"
-		00029 "SQL_ATTR_ASYNC_STMT_EVENT"               ;
-	;   ????? "SQL_ATTR_ASYNC_STMT_PCALLBACK"           ;driver-only
-	;   ????? "SQL_ATTR_ASYNC_STMT_PCONTEXT"            ;driver-only
-		10010 "SQL_ATTR_APP_ROW_DESC"                   ;handle! "to the ARD for subsequent fetches on the statement handle"
-		10011 "SQL_ATTR_APP_PARAM_DESC"                 ;handle! "to the APD for subsequent calls to SQLExecute and SQLExecDirect on the statement handle"
-		10012 "SQL_ATTR_IMP_ROW_DESC"                   ;read-only handle! "to the IRD"
-		10013 "SQL_ATTR_IMP_PARAM_DESC"                 ;read-only handle! "handle to the IPD"
-		10014 "SQL_ATTR_METADATA_ID"                    ;SQLULEN "determines how the string arguments of catalog functions are treated"
-		FFFFh "SQL_ATTR_CURSOR_SCROLLABLE"              ;[0 non-scrollable 1 scrollable] "specifies the level of scrolling support that the application requires"
-		FFFEh "SQL_ATTR_CURSOR_SENSITIVITY"             ;SQLULEN "specifies whether cursors on the statement handle make visible the changes made to a result set by another cursor"
 	]
 
 
