@@ -2715,7 +2715,8 @@ odbc: context [
 		stmt-field-cursor
 		stmt-field-debug?
 
-		col-field-name:             0
+		col-field-word:             0
+		col-field-name
 		col-field-sql-type
 		col-field-col-size
 		col-field-digits
@@ -2723,7 +2724,7 @@ odbc: context [
 		col-field-buffer
 		col-field-buffer-len
 		col-field-strlen-ind
-		col-field-fields:           8
+		col-field-fields:           9
 	]
 
 	;---------------------------------------- symbols --

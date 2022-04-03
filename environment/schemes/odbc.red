@@ -1728,7 +1728,6 @@ odbc: context [
 			sql-type    [integer!]
 			status      [red-handle!]
 			strlen      [int-ptr!]
-			title       [red-string!]
 			value       [red-value!]
 			values      [red-value!]
 			window      [integer!]
@@ -1917,9 +1916,8 @@ odbc: context [
 
 			#if debug? = yes [print ["^-allocate strlen, " window * size? integer! " bytes @ " strlen lf]]
 
-			title: string/load-in name name-len columns UTF-16LE
-			title/header: title/header or flag-new-line
-
+			   none/make-in columns
+			 string/load-in name name-len columns UTF-16LE
 			integer/make-in columns             sql-type
 			integer/make-in columns             col-size
 			integer/make-in columns             digits
@@ -2436,18 +2434,18 @@ odbc: context [
 
 		statement/columns: columns: bind-columns statement cols
 
-		;-- translate column names, return words
+		;-- translate and instert column names as word
+		;	in description block, return the words only
 
-		words: collect [until [
-			keep any [
-				attempt [to word! column: as-column first columns]
+		new-line/all collect [until [
+			system/words/change columns keep any [
+				attempt [to word! column: as-column second columns]
 				column
 			]
-			system/words/tail? columns: system/words/skip columns 8
-														;-- 8 = odbc/col-field-fields
-		]]
-
-		new-line/all words off
+			new-line columns on
+			system/words/tail? columns: system/words/skip columns 9
+														;-- 9 = odbc/col-field-fields
+		]] off
 	]
 
 
@@ -2492,8 +2490,8 @@ odbc: context [
 				system/words/change rows any [attempt [load value: to string! value] value]
 			]]
 
-			columns: divide system/words/length? statement/columns 8
-														; 8 = rs-odbc/col-field-fields
+			columns: divide system/words/length? statement/columns 9
+														; 9 = rs-odbc/col-field-fields
 			new-line/skip/all system/words/head rows on columns
 		][
 			foreach row rows [forall row [all [
