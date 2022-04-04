@@ -2439,7 +2439,7 @@ odbc: context [
 
 		new-line/all collect [until [
 			system/words/change columns keep any [
-				attempt [to word! column: as-column second columns]
+				attempt [to word! as-column column: second columns]
 				column
 			]
 			new-line columns on
