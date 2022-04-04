@@ -2925,9 +2925,9 @@ odbc: context [
 					print-buffer message message-len << 1
 
 					print-wstring as c-string! state
-					prin [" " native " " lf]
+					print [" " native " "]
 					print-wstring as c-string! message
-					prin [lf]
+					print [lf]
 				]
 			]
 
