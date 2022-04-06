@@ -379,6 +379,15 @@ insert snowwhite [
 ]
 ```
 
+You can also pass a list of blocks with using `compose/deep` in follow way:
+
+```Red
+insert snowwhite compose/deep [
+    "INSERT INTO Dwarves (Num, Name) VALUES (?, ?)"
+   ([ [1 "Dopey"] [2 "Doc"] [3 "Bashful"] [4 "Sneezy"] [5 "Happy"] [6 "Grumpy"] [7 "Sleepy"] ])
+]
+```
+
 Array parameters are passed as blocks of parameter sets.
 
 NOTE 1: It is ***not*** possible to use batched statements together with
