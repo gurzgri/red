@@ -308,6 +308,68 @@ as it does with series.
 lesser-or-equal than *r* will return a rowset of *r* rows, starting with row 1.
 In other words, it will "overlap" the previous rowset.
 
+## Deferred Retrieval of TEXT and BLOB Columns with Cursors
+
+You may have to deal with special columns of type TEXT and BLOB for long texts
+and binary large objects like e.g. image data. Such columns can be read too, but are treated as `deferred` values and can't be fetched immediatly
+with normal `copy`.
+
+So instead of
+
+```Red
+photos: open album: open odbc://album
+select photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
+== [file-name image thumbnail]
+images: copy photos
+== [
+   ["Me at the beach.jpg" deferred deferred]
+   ["Me in the snow.jpg" deferred deferred]
+   ["Me in the woods.jpg" deferred deferred]
+   ...
+```
+
+you'll have to fetch column values marked as `deferred` with the help of a cursor and `pick` each single value individually:
+
+```Red
+photos: open album: open odbc://album
+
+photos/state/window: 1
+photos/state/cursor: 'static        ;-- or 'dynamic
+
+select photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
+== [file-name image thumbnail]
+images: next photos                 ;-- retrieve first row
+== [
+    ["Me at the beach.jpg" deferred deferred]
+]
+picture: pick images 'image
+== #{
+FFD8FFE000104A46494600010101004800480000FFE11B764578696600004D4D
+002A00000008000D010F000200000006000000AA0110000200000009000000B0
+01120003000000010003...
+thumbnail: pick images 'thumbnail
+== #{
+FFD8FFE000104A46494600010101004800480000FFE119584578696600004D4D
+002A00000008000D010F000200000006000000AA0110000200000009000000B0
+01120003000000010008...
+
+images: next photo                  ;-- advance cursor one row
+```
+
+You can only pick from columns with the `deferred` placeholder
+in the row returned and due to ODBC restrictions the row has to be fetched first.
+
+After that, you can `pick` the desired TEXT or BLOB column by either
+the name of the column word or by column number.
+If there is more than one TEXT or BLOB column in the result set retrieved,
+one has to pick them from left to right due to restrictions ODBC imposes.
+
+That means that in the example above you can not first
+`pick photos 'thumbnail` and then `pick photos 'image`
+from the same column. Of course you aren't required to fetch *all* columns, yo can leave out columns you're not interested in.
+
+The values returned will always be either of type `string!` or of type `binary!`.
+
 ## Deleting Rows with Cursors
 
 The first row of the last-fetched rowset is the ***current row***. `remove` on
