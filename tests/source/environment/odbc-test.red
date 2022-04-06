@@ -472,7 +472,7 @@ Red [
 		]
 
 	--test-- "can do batched statements"
-		--assert equal? {[[col1] [^/    [1]^/] [col1 col2] [^/    [1 2]^/]]} attempt [mold collect [
+		--assert equal? {[[col-1] [^/    [1]^/] [col-1 col-2] [^/    [1 2]^/]]} attempt [mold collect [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
 			keep/only insert test "SELECT 1 AS Col1; SELECT 1 AS Col1, 2 AS Col2"
 			keep/only copy test
