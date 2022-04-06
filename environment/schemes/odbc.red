@@ -1899,7 +1899,7 @@ odbc: context [
 					sql-type = sql/varbinary
 					sql-type = sql/binary
 				][
-					c-type: sql/c-char
+					c-type: sql/c-binary
 					buflen: col-size
 				]
 				true [
