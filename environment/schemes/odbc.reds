@@ -1087,7 +1087,7 @@ sql: context [
 	;   pred-searchable:                             13 ;=SEARCHABLE
 
 		;-- Special return values for SQLGetData
-	;   no-total:                                 FFFCh ;-4
+		no-total:                                 FFFCh ;-4
 
 		;********************************************
 		;* SQLGetFunctions: additional values for   *
@@ -2458,6 +2458,16 @@ sql: context [
 			return:                 [integer!]
 		]
 
+		SQLGetData: "SQLGetData" [
+			statement               [integer!]
+			column-number           [integer!]
+			target-type             [integer!]
+			target-value            [byte-ptr!]
+			buffer-length           [integer!]
+			length-ptr              [int-ptr!]
+			return:                 [integer!]
+		]
+
 		SQLGetDiagRec: "SQLGetDiagRecW" [
 			type                    [integer!]
 			handle                  [integer!]
@@ -2752,6 +2762,7 @@ odbc: context [
 	_special:       symbol/resolve symbol/make "special"
 	_statement:     symbol/resolve symbol/make "statement"
 	_statistics:    symbol/resolve symbol/make "statistics"
+	_deferred:      symbol/resolve symbol/make "deferred"
 	_system:        symbol/resolve symbol/make "system"
 	_table:         symbol/resolve symbol/make "table"
 	_tables:        symbol/resolve symbol/make "tables"

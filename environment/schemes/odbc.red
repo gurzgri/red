@@ -1811,18 +1811,24 @@ odbc: context [
 			#if debug? = yes [print ["^-sql-type = " sql-type ", col-size = " col-size lf]]
 
 			case [
+				sql-type = sql/wlongvarchar [
+					c-type: sql/c-wchar
+					buflen: 0
+				]
 				any [
 					sql-type = sql/wchar
 					sql-type = sql/wvarchar
-					sql-type = sql/wlongvarchar
 				][
 					c-type: sql/c-wchar
 					buflen: col-size + 1 << 1
 				]
+				sql-type = sql/longvarchar [
+					c-type: sql/c-wchar
+					buflen: 0
+				]
 				any [
 					sql-type = sql/char
 					sql-type = sql/varchar
-					sql-type = sql/longvarchar
 				][
 					c-type: sql/c-wchar
 					buflen: col-size + 1 << 1
@@ -1894,8 +1900,11 @@ odbc: context [
 					c-type: sql/c-char
 					buflen: col-size + 1
 				]
+				sql-type = sql/longvarbinary [
+					c-type: sql/c-binary
+					buflen: 0
+				]
 				any [
-					sql-type = sql/longvarbinary
 					sql-type = sql/varbinary
 					sql-type = sql/binary
 				][
@@ -2112,13 +2121,18 @@ odbc: context [
 					case [
 						any [
 							sql-type = sql/wlongvarchar
+							sql-type = sql/longvarchar
+							sql-type = sql/longvarbinary
+						][
+							word/push-in odbc/_deferred row
+						]
+						any [
 							sql-type = sql/wvarchar
 							sql-type = sql/wchar
 						][
 							string/load-in as c-string! bufrow length/value >> 1 row UTF-16LE
 						]
 						any [
-							sql-type = sql/longvarchar
 							sql-type = sql/varchar
 							sql-type = sql/char
 						][
@@ -2156,7 +2170,6 @@ odbc: context [
 							string/load-in as c-string! bufrow length/value row UTF-8
 						]
 						any [
-							sql-type = sql/longvarbinary
 							sql-type = sql/varbinary
 							sql-type = sql/binary
 						][
@@ -2238,6 +2251,122 @@ odbc: context [
 		]
 
 		SET_RETURN(rowset)
+
+		#if debug? = yes [print ["]" lf]]
+	]
+
+
+	;------------------------------------ fetch-value --
+	;
+
+	fetch-value: routine [
+		statement       [object!]
+		column          [integer!]
+		/local
+			buffer      [byte-ptr!]
+			buflen      [integer!]
+			c-type      [integer!]
+			columns     [red-block!]
+			debug       [red-logic!]
+			hstmt       [red-handle!]
+			length      [integer!]
+			offset      [integer!]
+			rc          [integer!]
+			redbin      [red-binary!]
+			redstr      [red-string!]
+			series      [series!]
+			sql-type    [integer!]
+			strlen      [int-ptr!]
+			values      [red-value!]
+	][
+		#if debug? = yes [print ["FETCH-VALUE [" lf]]
+
+		values:          object/get-values statement
+		hstmt:       as red-handle! values + odbc/common-field-handle
+
+		columns:      as red-block! values + odbc/stmt-field-columns
+		debug:        as red-logic! values + odbc/stmt-field-debug?
+		offset:     column - 1 * odbc/col-field-fields + odbc/col-field-sql-type
+		sql-type:   integer/get block/rs-abs-at columns offset
+
+		case [
+			any [
+				sql-type = sql/wlongvarchar
+				sql-type = sql/longvarchar
+			][
+				c-type: sql/c-wchar
+			]
+			sql-type = sql/longvarbinary [
+				c-type: sql/c-binary
+			]
+			true [
+				SET_RETURN(none-value)						;-- exit early with NONE
+				exit
+			]
+		]
+
+		buflen: 4096
+		buffer: allocate buflen
+		strlen: declare int-ptr!
+		strlen/value: 0
+		length: 0
+
+		redbin: binary/load buffer 0
+
+		#if debug? = yes [print ["^-allocate buffer, " strlen/value " bytes @ " buffer lf]]
+
+		until [
+			ODBC_RESULT sql/SQLGetData hstmt/value
+									   column
+									   c-type
+									   buffer
+									   buflen
+									   strlen
+
+			#if debug? = yes [print ["^-SQLGetData " rc lf]]
+
+			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+
+			unless any [ODBC_SUCCESS ODBC_INFO ODBC_NO_DATA] [
+				free buffer
+				fire [
+					TO_ERROR(script bad-bad) odbc/odbc
+					as red-block! (object/get-values statement) + odbc/common-field-errors
+				]
+			]
+
+			length: case [
+				ODBC_INFO [case [
+					c-type = sql/c-binary [buflen]
+					c-type = sql/c-wchar  [buflen - 2]  ;-- null-termination wchar
+				]]
+				ODBC_SUCCESS [strlen/value]
+				true         [0]
+			]
+
+			if ODBC_SUCCEEDED [
+				if debug/value [
+					odbc/print-buffer buffer length
+				]
+
+				binary/rs-append redbin buffer length
+			]
+
+			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
+		]
+
+		free buffer
+
+		either sql-type <> sql/longvarbinary [
+			redstr: as red-string! as red-value! redbin
+			set-type as red-value! redstr TYPE_STRING
+			series: GET_BUFFER(redstr)
+			series/flags: series/flags and flag-unit-mask or UCS-2
+
+			SET_RETURN(redstr)
+		][
+			SET_RETURN(redbin)
+		]
 
 		#if debug? = yes [print ["]" lf]]
 	]
@@ -3449,7 +3578,8 @@ odbc: context [
 		]
 
 		set-statement statement FFFFh                   ;-- SQL_ATTR_CURSOR_SCROLLABLE
-								pick [1 0] new          ;-- SQL_(NON)SCROLLABLE
+								system/words/pick [1 0] new
+								                        ;-- SQL_(NON)SCROLLABLE
 								FFFBh                   ;-- SQL_IS_UINTEGER
 	]
 
@@ -3726,6 +3856,25 @@ odbc: context [
 	]
 
 
+	;------------------------------------------- pick --
+	;
+
+	pick: function [
+		"Pick long data from column in current row."
+		statement       [port!]
+		column          [word! integer!]
+	][
+		if debug-odbc? [print "actor/pick"]
+
+		unless integer? column [
+			column: 1 + to integer! divide system/words/index? find/tail statement/state/columns column 9
+														;-- 9 = odbc/col-field-fields
+		]
+
+		fetch-value statement/state column
+	]
+
+
 	;------------------------------------------- skip --
 	;
 
@@ -3736,7 +3885,7 @@ odbc: context [
 	][
 		if debug-odbc? [print "actor/skip"]
 
-		rows: fetch-columns statement/state pick [at skip] zero? rows rows
+		rows: fetch-columns statement/state system/words/pick [at skip] zero? rows rows
 		return-columns statement/state rows
 	]
 
