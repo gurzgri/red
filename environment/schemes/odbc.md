@@ -336,7 +336,7 @@ photos: open album: open odbc://album
 photos/state/window: 1
 photos/state/cursor: 'static        ;-- or 'dynamic
 
-select photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
+insert photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
 == [file-name image thumbnail]
 images: next photos                 ;-- retrieve first row
 == [
