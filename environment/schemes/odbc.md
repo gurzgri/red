@@ -342,18 +342,18 @@ images: next photos                 ;-- retrieve first row
 == [
     ["Me at the beach.jpg" deferred deferred]
 ]
-picture: pick images 'image
+picture: pick photos 'image
 == #{
 FFD8FFE000104A46494600010101004800480000FFE11B764578696600004D4D
 002A00000008000D010F000200000006000000AA0110000200000009000000B0
 01120003000000010003...
-thumbnail: pick images 'thumbnail
+thumbnail: pick photos 'thumbnail
 == #{
 FFD8FFE000104A46494600010101004800480000FFE119584578696600004D4D
 002A00000008000D010F000200000006000000AA0110000200000009000000B0
 01120003000000010008...
 
-images: next photo                  ;-- advance cursor one row
+images: next photos                 ;-- advance cursor one row
 ```
 
 You can only pick from columns with the `deferred` placeholder
