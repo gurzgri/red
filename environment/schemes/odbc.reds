@@ -56,7 +56,7 @@ sql: context [
 		;             ▀▀
 
 		;-- special length/indicator values
-		null-data:                                FFFFh ;-1
+		null-data:                                   -1
 	;   data-at-exec:                             FFFEh ;-2
 
 		;-- return values from functions
@@ -340,7 +340,7 @@ sql: context [
 	;   api-sqldatasources:                          57
 	;   api-sqldescribecol:                           8
 	;   api-sqldisconnect:                            9
-	;   api-sqlendtran:                        i   1005
+	;   api-sqlendtran:                            1005
 	;   api-sqlerror:                                10
 	;   api-sqlexecdirect:                           11
 	;   api-sqlexecute:                              12
@@ -995,7 +995,7 @@ sql: context [
 	;   endif
 
 	;   c-guid:                                   FFF5h ;=GUID
-	;   type-null:                                    0
+		type-null:                                    0
 
 		;-- base value of driver-specific C-Type (max is 0x7fff)
 		;   define driver-specific C-Type, named as DRIVER-C-TYPE-BASE,

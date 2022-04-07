@@ -1124,8 +1124,9 @@ odbc: context [
 			;-- populate buffer array
 			;
 
-			sql-type:   sql/bit                         ;-- default in case all rows are #[none]
-			c-type:     sql/c-bit                       ;
+			sql-type:   sql/type-null                   ;-- default in case all rows are #[none]
+			c-type:     sql/c-default                   ;
+			column-size: 0
 			digits:     0
 
 			row: 1
@@ -2113,7 +2114,7 @@ odbc: context [
 					length:   as int-ptr! strlen/value
 					length: length + r
 
-					if sql/null-data = (FFFFh and length/value) [
+					if sql/null-data = length/value [
 						none/make-in row                ;-- continue early with NONE value
 						continue
 					]
