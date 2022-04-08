@@ -2308,13 +2308,13 @@ odbc: context [
 
 		buflen: 4096
 		buffer: allocate buflen
+
+		#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer " for column " column lf]]
+
 		strlen: declare int-ptr!
 		strlen/value: 0
 		length: 0
-
 		redbin: binary/load buffer 0
-
-		#if debug? = yes [print ["^-allocate buffer, " strlen/value " bytes @ " buffer lf]]
 
 		until [
 			ODBC_RESULT sql/SQLGetData hstmt/value
