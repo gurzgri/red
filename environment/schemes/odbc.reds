@@ -2881,6 +2881,7 @@ odbc: context [
 
 		values:         object/get-values entity
 		errors:         as red-block! values + common-field-errors
+		block/rs-clear errors
 
 		state:          allocate 5 + 1 << 1
 
