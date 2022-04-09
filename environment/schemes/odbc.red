@@ -1936,26 +1936,29 @@ odbc: context [
 			integer/make-in columns             buflen
 			 handle/make-in columns as integer! strlen
 
-			;-- bind --
-			;
+			unless any [
+				sql-type = sql/wlongvarchar				;-- skip binding for deferred columns for
+				sql-type = sql/longvarchar				;   drivers w/o GetData Extensions
+				sql-type = sql/longvarbinary
+			][
+				ODBC_RESULT sql/SQLBindCol hstmt/value
+										col
+										c-type
+										buffer
+										buflen
+										strlen
 
-			ODBC_RESULT sql/SQLBindCol hstmt/value
-									   col
-									   c-type
-									   buffer
-									   buflen
-									   strlen
+				#if debug? = yes [print ["^-SQLBindCol " rc lf]]
 
-			#if debug? = yes [print ["^-SQLBindCol " rc lf]]
+				ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+				unless ODBC_SUCCEEDED [fire [
+					TO_ERROR(script bad-bad) odbc/odbc
+					as red-block! (object/get-values statement) + odbc/common-field-errors
+				]]
 
-			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) odbc/odbc
-				as red-block! (object/get-values statement) + odbc/common-field-errors
-			]]
-
-			#if debug? = yes [print ["^-c-type = " c-type lf]]
+				#if debug? = yes [print ["^-c-type = " c-type lf]]
+			]
 
 			col: col + 1
 		]
