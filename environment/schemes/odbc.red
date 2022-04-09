@@ -2904,6 +2904,10 @@ odbc: context [
 		00081 "getdata-extensions" any [
 			00000001h any-column
 			00000002h any-order
+			00000004h block
+			00000008h bound
+			00000010h output-params
+			00000020h concurrent
 		]
 		00082 "bookmark-persistence" any [
 			00000001h close
