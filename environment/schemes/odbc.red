@@ -3680,6 +3680,8 @@ odbc: context [
 					string? first sql
 				]
 			]][
+				all part [statement/state/window: length]						;-- shorthand
+
 				sql: reduce compose [(sql)]
 
 				free-parameters statement/state
