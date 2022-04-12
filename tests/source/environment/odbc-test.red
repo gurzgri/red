@@ -60,18 +60,15 @@ Red [
 			outcome
 		]
 
-	--test-- "can set state/auto-commit?"
+	--test-- "can set state/commit?"
 		--assert not error? try [
-			conn: open rejoin [odbc:// get-env "TESTCSV"]
-			conn/state/auto-commit?: not conn/state/auto-commit?
-			close conn
+			close change open rejoin [odbc:// get-env "TESTDSN"] [commit?: no]
 		]
 
 	--test-- "can manually commit a transaction"
 		--assert not error? try [
-			test: open conn: open rejoin [odbc:// get-env "TESTCSV"]
-			conn/state/auto-commit?: no
-			insert test "INSERT INTO test.csv (Name, Zahl, Datum) VALUES ('Manuell', 4711, '01-01-2020')"
+			insert change open conn: open rejoin [odbc:// get-env "TESTCSV"] [commit?: no]
+				"INSERT INTO test.csv (Name, Zahl, Datum) VALUES ('Manuell', 4711, '01-01-2020')"
 			insert conn 'commit
 			close conn
 		]
@@ -396,17 +393,14 @@ Red [
 	--test-- "can not page back with forward-only cursor"
 		--assert error? try [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			test/state/window: 2
-			insert test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a ORDER BY a }
+			insert/part test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a ORDER BY a } 2
 			next test
 			also try [back test] close conn
 		]
 
 	--test-- "can set static cursor"
 		--assert not error? try [
-			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			test/state/window: 2
-			test/state/cursor: 'static
+			change test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [window: 2 access: 'static]
 			insert test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a ORDER BY a }
 			back next test
 			close conn
@@ -414,9 +408,7 @@ Red [
 
 	--test-- "may overlap when back paging"
 		--assert equal? 2 try [
-			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			test/state/window: 2
-			test/state/cursor: 'static
+			change test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [window: 2 access: 'static]
 			insert test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a UNION SELECT 4 AS a UNION SELECT 5 AS a ORDER BY a }
 			loop 3 [rows: next test]                    ;-- rows = []
 			loop 2 [rows: back test]

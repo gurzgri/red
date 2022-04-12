@@ -847,7 +847,7 @@ sql: context [
 
 		;-- New values for USE-BOOKMARKS attribute
 	;   ub-fixed:                                     1 ;=UB-ON
-	;   ub-variable:                                  2 ;2UL
+		ub-variable:                                  2 ;2UL
 
 		;-- extended descriptor field
 	;   desc-array-size:                             20
@@ -991,7 +991,7 @@ sql: context [
 	;   ifdef -WIN64
 	;   c-bookmark:                               FFFBh ;=C-UBIGINT
 	;   else
-	;   c-bookmark:                               FFEEh ;=C-ULONG
+	;	c-bookmark:                               FFEEh ;=C-ULONG
 	;   endif
 
 	;   c-guid:                                   FFF5h ;=GUID
@@ -1020,7 +1020,7 @@ sql: context [
 	;   driver-stmt-attr-base:                00004000h ;-- 32-bit
 	;   ] ; ODBCVER >= 0380h
 
-	;   c-varbookmark                             FFFEh ;=C-BINARY
+		c-varbookmark:                            FFFEh ;=C-BINARY
 
 		;-- define for DIAG-ROW-NUMBER and DIAG-COLUMN-NUMBER
 	;   no-row-number:                            FFFFh ;-1
@@ -2590,6 +2590,13 @@ sql: context [
 			return:                 [integer!]
 		]
 
+		SQLSetCursorName: "SQLSetCursorNameW" [
+			statement               [integer!]
+			name                    [c-string!]
+			length                  [integer!]
+			return:                 [integer!]
+		]
+
 		SQLSetEnvAttr: "SQLSetEnvAttr" [
 			environment             [integer!]
 			attribute               [integer!]
@@ -2698,43 +2705,47 @@ odbc: context [
 
 	#enum odbc-field! [
 		common-field-type:          0
+		common-field-port
 		common-field-handle
 		common-field-errors
 		common-field-flat?
 
-		env-field-count:            4
+		env-field-count:            5
 		env-field-connections
-		env-field-login-timeout
+		env-field-timeout
 
-		dbc-field-environment:      4
+		dbc-field-environment:      5
 		dbc-field-statements
 		dbc-field-info
-		dbc-field-port
 		dbc-field-auto-commit
 
-		stmt-field-connection:      4
+		stmt-field-connection:      5
+		stmt-field-cursor
 		stmt-field-sql
 		stmt-field-params
 		stmt-field-prms-status
 		stmt-field-window
 		stmt-field-columns
-		stmt-field-scroll
 		stmt-field-rows-status
 		stmt-field-rows-fetched
-		stmt-field-port
-		stmt-field-cursor
+		stmt-field-access
+		stmt-field-bookmarks?
 		stmt-field-debug?
 
 		col-field-word:             0
 		col-field-name
 		col-field-sql-type
+		col-field-c-type
 		col-field-col-size
 		col-field-digits
 		col-field-nullable
 		col-field-buffer
 		col-field-buffer-len
 		col-field-strlen-ind
-		col-field-fields:           9
+		col-field-fields
+
+		crsr-field-statement:       5
+		crsr-field-position
 	]
 
 	;---------------------------------------- symbols --

@@ -21,12 +21,13 @@ odbc: context [
 
 	environment: context [                              ;-- FIXME: singleton, ODBC allows for multiple
 		type:          'environment
+		port:           none                            ;-- unused common
 		handle:         none
 		errors:         []
 		flat?:          no
 		count:          0
 		connections:    []
-		login-timeout:  none
+		timeout:        none
 
 		drivers:        does [do reduce [get-drivers]]
 		sources:        function [/user /system] [
@@ -38,55 +39,76 @@ odbc: context [
 		]
 
 		on-change*:     func [word old new] [switch word [
-			login-timeout [any [
-				none? new
-				all [integer? new positive? new]
-				login-timeout: old
+			timeout [unless any [none? new all [integer? new positive? new]] [timeout: old
+				cause-error 'script 'expect-type ['the 'timeout [positive integer! | none!]]
 			]]
-			flat? [flat?: either logic? new [new] [old]]
+			flat? [unless logic? new [flat?: old
+				cause-error 'script 'expect-type ['the 'flat? logic!]
+			]]
 		]]
 	]
 
 	connection-proto: context [
 		type:          'connection
+		port:           none
 		handle:         none
 		errors:         []
 		flat?:          none
 		environment:    none
 		statements:     []
 		info:           none
-		port:           none
-		auto-commit?:   yes
+		commit?:        yes
 
 		on-change*:     func [word old new] [switch word [
-			auto-commit? [set-commit-mode self old new]
-			flat? [flat?: either any [logic? new none? new] [new] [old]]
+			commit? [either logic? new [set-commit-mode self new] [commit?: old
+				cause-error 'script 'expect-type ['the 'commit? logic!]
+			]]
+			flat? [unless find [logic! none!] type?/word new [new] [flat?: old
+				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
+			]]
 		]]
 	]
 
 	statement-proto: context [
 		type:          'statement
+		port:           none
 		handle:         none
 		errors:         []
 		flat?:          none
 		connection:     none
+		cursor:         none
 		sql:            none
 		params:         []
 		prms-status:    none
 		window:         10                              ;-- default window size
 		columns:        []
-		scroll?:        off
 		rows-status:    none
 		rows-fetched:   none
-		port:           none
-		cursor:        'forward
+		access:        'forward
+		bookmarks?:     no
 		debug?:         off
 
 		on-change*:     func [word old new] [switch word [
-			scroll? [set-cursor-scrolling self old new]
-			cursor  [set-cursor-type      self old new]
-			flat?   [flat?: either any [logic? new none? new] [new] [old]]
+			access [either find [default forward static dynamic keyset] new [set-access self new] [access: old
+				cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
+			]]
+			flat? [unless find [logic! none!] type?/word new [flat?: old
+				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
+			]]
+			bookmarks? [either logic? new [set-bookmarks self new] [bookmarks?: old
+				cause-error 'script 'expect-type ['the 'bookmarks? logic!]
+			]]
 		]]
+	]
+
+	cursor-proto: context [
+		type:          'cursor
+		port:			none
+		handle:         none
+		errors:         none                            ;-- unused commons
+		flat?:          none                            ;
+		statement:      none
+		position:       0
 	]
 
 
@@ -98,7 +120,6 @@ odbc: context [
 
 	open-environment: routine [
 		environment     [object!]
-		return:         [none!]
 		/local
 			sqlhenv     [integer!]
 			rc          [integer!]
@@ -142,7 +163,7 @@ odbc: context [
 
 		#if debug? = yes [print ["]" lf]]
 
-		as red-none! SET_RETURN(none-value)
+		SET_RETURN(none-value)
 	]
 
 
@@ -262,7 +283,6 @@ odbc: context [
 	list-sources: routine [
 		environment     [object!]
 		scope           [word!]
-		return:         [value!]
 		/local
 			desc-buf    [byte-ptr!]
 			desc-len    [integer!]
@@ -392,7 +412,6 @@ odbc: context [
 			henv        [red-handle!]
 			sqlhdbc     [integer!]
 			rc          [integer!]
-			seconds     [red-integer!]
 			str         [c-string!]
 			str-len     [integer!]
 			timeout     [red-value!]
@@ -400,7 +419,7 @@ odbc: context [
 		#if debug? = yes [print ["OPEN-CONNECTION [" lf]]
 
 		henv:       as red-handle! (object/get-values environment) + odbc/common-field-handle
-		timeout:                   (object/get-values environment) + odbc/env-field-login-timeout
+		timeout:                   (object/get-values environment) + odbc/env-field-timeout
 		sqlhdbc:    0
 
 		ODBC_RESULT sql/SQLAllocHandle sql/handle-dbc
@@ -423,10 +442,8 @@ odbc: context [
 				(object/get-values connection) + odbc/common-field-handle
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
-			seconds: as red-integer! timeout
-
 			set-connection connection sql/attr-login-timeout
-									  seconds/value
+									  integer/get timeout
 									  sql/is-integer
 		]
 
@@ -997,8 +1014,6 @@ odbc: context [
 			red-binary  [red-binary!]
 			red-date    [red-date!]
 			red-float   [red-float!]
-			red-integer [red-integer!]
-			red-logic   [red-logic!]
 			red-string  [red-string!]
 			red-time    [red-time!]
 			row         [integer!]
@@ -1147,8 +1162,7 @@ odbc: context [
 						column-size:        4
 						sql-type:           sql/integer
 						c-type:             sql/c-long
-						red-integer:        as red-integer! param
-						val-integer:        red-integer/value
+						val-integer:        integer/get param
 
 						copy-memory bufslot as byte-ptr! :val-integer column-size
 
@@ -1211,8 +1225,7 @@ odbc: context [
 						digits:             1
 						sql-type:           sql/bit
 						c-type:             sql/c-bit
-						red-logic:          as red-logic! param
-						bufslot/value:      as byte! red-logic/value
+						bufslot/value:      as byte! logic/get param
 						bufslot:            bufslot + buflen
 						lenslot/value:      1
 
@@ -1342,7 +1355,6 @@ odbc: context [
 			bol         [integer!]
 			hstmt       [red-handle!]
 			nullable    [integer!]
-			nulls       [red-logic!]
 			rc          [integer!]
 			reserved    [integer!]
 			s1 s2 s3
@@ -1471,9 +1483,8 @@ odbc: context [
 				nullable: sql/no-nulls                  ;-- default
 
 				if TYPE_OF(v7) = TYPE_LOGIC [
-					nulls: as red-logic! v7
 					nullable: case [
-						nulls/value             [sql/nullable]
+						logic/get v7            [sql/nullable]
 				]   ]
 
 				ODBC_RESULT sql/SQLSpecialColumns hstmt/value sctype s3 sql/nts s4 sql/nts s5 sql/nts scope nullable
@@ -1603,6 +1614,55 @@ odbc: context [
 	]
 
 
+	;------------------------------------ name-cursor --
+	;
+
+	name-cursor: routine [
+		statement       [object!]
+		name            [string!]
+		/local
+			hstmt       [red-handle!]
+			rc          [integer!]
+			str         [c-string!]
+	][
+		#if debug? = yes [print ["NAME-CURSOR [" lf]]
+
+		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		str:   unicode/to-utf16 name
+
+		ODBC_RESULT sql/SQLSetCursorName hstmt/value
+										 str
+										 odbc/wlength? str
+
+		#if debug? = yes [print ["^-SQLSetCursorName " rc lf]]
+
+		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+
+		unless ODBC_SUCCEEDED [fire [
+			TO_ERROR(script bad-bad) odbc/odbc
+			as red-block! (object/get-values statement) + odbc/common-field-errors
+		]]
+
+		#if debug? = yes [print ["]" lf]]
+	]
+
+
+	;----------------------------------- fetched-rows --
+	;
+
+	fetched-rows: routine [
+		statement       [object!]
+		/local
+			fetched     [red-handle!]
+			rows        [int-ptr!]
+	][
+		fetched:    as red-handle! (object/get-values statement) + odbc/stmt-field-rows-fetched
+		rows:       as int-ptr! fetched/value
+
+		SET_RETURN((integer/box rows/value))
+	]
+
+
 	;---------------------------------- more-results? --
 	;
 
@@ -1712,6 +1772,7 @@ odbc: context [
 		statement       [object!]
 		cols            [integer!]
 		/local
+			bookmarks   [logic!]
 			buffer      [byte-ptr!]
 			buflen      [integer!]
 			c-type      [integer!]
@@ -1747,6 +1808,7 @@ odbc: context [
 
 		hstmt:    as red-handle! values + odbc/common-field-handle
 
+		bookmarks:     logic/get values + odbc/stmt-field-bookmarks?
 		fetched:  as red-handle! values + odbc/stmt-field-rows-fetched          ;-- number of rows fetched
 		window:     integer/get (values + odbc/stmt-field-window)               ;-- window size (num of rows to recieve)
 		value:                   values + odbc/stmt-field-rows-status
@@ -1782,7 +1844,7 @@ odbc: context [
 
 		columns:        block/push-only* cols * odbc/col-field-fields
 		col-size:       0
-		col:            1
+		col:            either bookmarks [0] [1]
 		buffer:         null
 
 		while [col <= cols] [
@@ -1809,9 +1871,13 @@ odbc: context [
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
-			#if debug? = yes [print ["^-sql-type = " sql-type ", col-size = " col-size lf]]
+			#if debug? = yes [print ["^-col = " col ", sql-type = " sql-type ", col-size = " col-size lf]]
 
 			case [
+				zero? col [
+					c-type: sql/c-varbookmark
+					buflen: col-size
+				]
 				sql-type = sql/wlongvarchar [
 					c-type: sql/c-wchar
 					buflen: 0
@@ -1927,8 +1993,13 @@ odbc: context [
 			#if debug? = yes [print ["^-allocate strlen, " window * size? integer! " bytes @ " strlen lf]]
 
 			   none/make-in columns
-			 string/load-in name name-len columns UTF-16LE
+			either zero? col [
+				string/load-in "bookmark" 8 columns UTF-8
+			][
+				string/load-in name name-len columns UTF-16LE
+			]
 			integer/make-in columns             sql-type
+			integer/make-in columns             c-type
 			integer/make-in columns             col-size
 			integer/make-in columns             digits
 			integer/make-in columns             nullable
@@ -1980,20 +2051,22 @@ odbc: context [
 		orientation     [word!]
 		offset          [integer!]
 		/local
+			bookmarks   [logic!]
 			buffer      [red-handle!]
 			buflen      [integer!]
 			bufrow      [byte-ptr!]
 			c           [integer!]
+			c-type      [integer!]
 			d           [integer!]
 			col-size    [integer!]
 			cols        [integer!]
 			columns     [red-block!]
-			debug       [red-logic!]
+			debug       [logic!]
 			dt          [sql-date!]
 			digits      [integer!]
 			fetched     [red-handle!]
-			flat?       [red-value!]
-			flatten     [red-logic!]
+			flatval     [red-value!]
+			flat?       [logic!]
 			float-ptr   [struct! [int1 [integer!] int2 [integer!]]]
 			hstmt       [red-handle!]
 			int-ptr     [int-ptr!]
@@ -2023,21 +2096,22 @@ odbc: context [
 		hstmt:       as red-handle! values + odbc/common-field-handle
 
 		columns:      as red-block! values + odbc/stmt-field-columns
+		bookmarks:        logic/get values + odbc/stmt-field-bookmarks?
 		window:         integer/get values + odbc/stmt-field-window
 		fetched:     as red-handle! values + odbc/stmt-field-rows-fetched
 		status:      as red-handle! values + odbc/stmt-field-rows-status
-		debug:        as red-logic! values + odbc/stmt-field-debug?
+		debug:            logic/get values + odbc/stmt-field-debug?
 
-		flat?:                      values + odbc/common-field-flat?
-		if TYPE_OF(flat?) = TYPE_NONE [
+		flatval:                    values + odbc/common-field-flat?
+		if TYPE_OF(flatval) = TYPE_NONE [
 			values:      object/get-values (as red-object! values + odbc/stmt-field-connection)
-			flat?:                  values + odbc/common-field-flat?
-			if TYPE_OF(flat?) = TYPE_NONE [
+			flatval:                values + odbc/common-field-flat?
+			if TYPE_OF(flatval) = TYPE_NONE [
 				values:  object/get-values (as red-object! values + odbc/dbc-field-environment)
-				flat?:              values + odbc/common-field-flat?
+				flatval:            values + odbc/common-field-flat?
 			]
 		]
-		flatten: as red-logic! flat?
+		flat?: logic/get flatval
 
 		#if debug? = yes [print ["^-window:  "              window        lf]]
 		#if debug? = yes [print ["^-status:  " as byte-ptr! status/value  lf]]
@@ -2078,7 +2152,7 @@ odbc: context [
 
 			#if debug? = yes [print ["^-fetched: " as byte-ptr! fetched/value " (" rows/value " rows) " lf]]
 
-			if debug/value [
+			if debug [
 				c: 0
 				loop cols [
 					offset: c * odbc/col-field-fields
@@ -2091,7 +2165,7 @@ odbc: context [
 
 			r: 0
 			loop rows/value [
-				row: either flatten/value [
+				row: either flat? [
 					rowset
 				][
 					block/make-in rowset cols
@@ -2103,6 +2177,7 @@ odbc: context [
 					c: c + 1
 
 					sql-type:   integer/get block/rs-abs-at columns offset + odbc/col-field-sql-type
+					c-type:     integer/get block/rs-abs-at columns offset + odbc/col-field-c-type
 					col-size:   integer/get block/rs-abs-at columns offset + odbc/col-field-col-size
 					nullable:   integer/get block/rs-abs-at columns offset + odbc/col-field-nullable
 					digits:     integer/get block/rs-abs-at columns offset + odbc/col-field-digits
@@ -2174,6 +2249,7 @@ odbc: context [
 							string/load-in as c-string! bufrow length/value row UTF-8
 						]
 						any [
+							c-type = sql/c-varbookmark
 							sql-type = sql/varbinary
 							sql-type = sql/binary
 						][
@@ -2271,7 +2347,7 @@ odbc: context [
 			buflen      [integer!]
 			c-type      [integer!]
 			columns     [red-block!]
-			debug       [red-logic!]
+			debug       [logic!]
 			hstmt       [red-handle!]
 			length      [integer!]
 			offset      [integer!]
@@ -2289,7 +2365,7 @@ odbc: context [
 		hstmt:       as red-handle! values + odbc/common-field-handle
 
 		columns:      as red-block! values + odbc/stmt-field-columns
-		debug:        as red-logic! values + odbc/stmt-field-debug?
+		debug:            logic/get values + odbc/stmt-field-debug?
 		offset:     column - 1 * odbc/col-field-fields + odbc/col-field-sql-type
 		sql-type:   integer/get block/rs-abs-at columns offset
 
@@ -2349,7 +2425,7 @@ odbc: context [
 			]
 
 			if ODBC_SUCCEEDED [
-				if debug/value [
+				if debug [
 					odbc/print-buffer buffer length
 				]
 
@@ -2479,7 +2555,6 @@ odbc: context [
 
 	close-environment: routine [
 		environment     [object!]
-		return:         [none!]
 		/local
 			henv        [red-handle!]
 			rc          [integer!]
@@ -2498,7 +2573,7 @@ odbc: context [
 
 		#if debug? = yes [print ["]" lf]]
 
-		as red-none! SET_RETURN(none-value)
+		SET_RETURN(none-value)
 	]
 
 
@@ -2506,7 +2581,7 @@ odbc: context [
 	;
 
 	debug-odbc?: routine [return: [logic!]] [
-	#either debug? = yes [true] [false]
+		#either debug? = yes [true] [false]
 	]
 
 
@@ -2576,8 +2651,7 @@ odbc: context [
 				column
 			]
 			new-line columns on
-			system/words/tail? columns: system/words/skip columns 9
-														;-- 9 = odbc/col-field-fields
+			system/words/tail? columns: system/words/skip columns col-field-fields: 10
 		]] off
 	]
 
@@ -2627,8 +2701,8 @@ odbc: context [
 				system/words/change rows any [attempt [load value: to string! value] value]
 			]]
 
-			columns: divide system/words/length? statement/columns 9
-														; 9 = rs-odbc/col-field-fields
+			columns: divide system/words/length? statement/columns col-field-fields: 10
+
 			new-line/skip/all system/words/head rows on columns
 		][
 			foreach row rows [forall row [all [
@@ -3538,57 +3612,48 @@ odbc: context [
 	;-------------------------------- set-commit-mode --
 	;
 
-	set-commit-mode: func [
+	set-commit-mode: function [
 		connection      [object!]
 		auto?           [logic!]
 	][
-		set-connection connection 0066h                 ;-- SQL_ATTR_AUTOCOMMIT
-								  either auto? [1] [0]  ;-- SQL_ATTR_AUTOCOMMIT on/off
-								  FFFBh                 ;-- SQL_IS_UINTEGER
+		set-connection connection
+					   attr-autocommit: 102
+					   either auto? [on: 1] [off: 0]
+					   is-uinteger: FFFBh
 	]
 
 
-	;-------------------------------- set-cursor-type --
+	;------------------------------------- set-access --
 	;
 
-	set-cursor-type: func [
+	set-access: function [
 		statement       [object!]
-		old
-		new
+		value           [word!]
 	][
-		case/all [
-			not find [default forward keyset static dynamic] new [
-				set-quiet in statement 'cursor old
-				cause-error 'script 'bad-bad ["ODBC" "invalid cursor type"]
-			]
-			find [keyset] new [
-				set-quiet in statement 'cursor old
-				cause-error 'internal 'bad-bad ["ODBC" "keyset driven cursors not implemented"]
-			]
+		if value = 'keyset [
+			cause-error 'internal 'not-done []
 		]
 
-		new: select [forward 0 keyset 1 dynamic 2 static 3 default 0] new
+		value: select [forward 0 keyset 1 dynamic 2 static 3 default 0] value
 
-		set-statement statement 6 new FFFBh             ;-- SQL_ATTR_CURSOR_TYPE, SQL_IS_UINTEGER
+		set-statement statement
+					  attr-cursor-type: 6
+					  value
+					  is-uinteger: FFFBh
 	]
 
 
-	;------------------------------- set-cursor-scrolling --
+	;---------------------------------- set-bookmarks --
 	;
 
-	set-cursor-scrolling: func [
+	set-bookmarks: function [
 		statement       [object!]
-		old
-		new
+		value           [logic!]
 	][
-		unless logic? new [
-			cause-error 'script 'bad-bad ["ODBC" "invalid cursor scrolling"]
-		]
-
-		set-statement statement FFFFh                   ;-- SQL_ATTR_CURSOR_SCROLLABLE
-								system/words/pick [1 0] new
-								                        ;-- SQL_(NON)SCROLLABLE
-								FFFBh                   ;-- SQL_IS_UINTEGER
+		set-statement statement
+					  attr-use-bookmarks: 12
+					  either value [ub-variable: 2] [ub-off: 0]
+					  is-uinteger: FFFBh
 	]
 
 
@@ -3606,8 +3671,8 @@ odbc: context [
 	;
 
 	open: function [
-		"Connect to a datasource or open a statement."
-		entity          [port!] "connection string to open connection port, connection port to return statement port"
+		"Connect to a datasource or open a statement or cursor."
+		entity          [port!] "connection string or connection or statement port"
 	][
 		case [
 			none? entity/state [
@@ -3643,6 +3708,25 @@ odbc: context [
 
 				port/state: statement
 				statement/port: port
+			]
+			all [entity/state entity/state/type = 'statement] [
+				if debug-odbc? [print "actor/open: cursor"]
+
+				statement:  entity/state
+
+				if statement/cursor [                   ;-- only one cursor per statement
+					cause-error 'access 'no-port-action []
+				]
+				cursor:     make cursor-proto []
+				port:       make entity [scheme: 'odbc]
+
+			;   open-cursor statement cursor
+
+				cursor/statement: statement             ;-- linkage only after success
+				statement/cursor: cursor
+
+				port/state:  cursor
+				cursor/port: port
 			]
 			/else [
 				cause-error 'script 'invalig-arg [entity]
@@ -3789,24 +3873,58 @@ odbc: context [
 	;
 
 	change: function [
-		"Translates SQL statement into native SQL."
-		entity          [port!]
-		sql             [series! port!] "sql string"
+		"Translates SQL statement into native SQL, sets a cursor name, sets state"
+		entity          [port!]         "connection, statement or cursor"
+		sql             [string! block! object!]
+										"sql string, cursor name or state block/object"
+		/local
+			access
 	][
-		if debug-odbc? [print "actor/change"]
-
-		sql: reduce compose [(sql)]
-
-		unless string? first sql [
-			cause-error 'script 'invalid-arg [sql]
+		set [connection: statement: cursor:] entity
+		switch entity/state/type [
+			connection [
+				switch/default type?/word sql [
+					string! [
+						translate-statement connection/state sql
+					]
+					block! object! [
+						foreach word words-of spec: make object! sql [
+							connection/state/:word: spec/:word
+						]
+						connection
+					]
+				][
+					cause-error 'script 'expect-val ['string! type? sql]
+				]
+			]
+			statement [
+				switch/default type?/word sql [
+					string! [
+						change statement/state/connection/port sql
+					]
+					block! object! [
+						foreach word words-of spec: make object! sql [
+							statement/state/:word: spec/:word
+						]
+						statement
+					]
+				][
+					cause-error 'script 'expect-val ['string! type? sql]
+				]
+			]
+			cursor [
+				parse reduce [sql] [
+					string! (
+						name-cursor cursor/state/statement sql
+					)
+				|	copy access ['forward | 'static | 'dynamic | 'keyset] (
+						cursor/state/statement/access: access
+					)
+				|	(cause-error 'script 'expect-val ['string! type? sql])
+				]
+				cursor
+			]
 		]
-
-		connection: switch entity/state/type [
-			connection [entity]
-			statement  [entity/state/connection/port]
-		]
-
-		translate-statement connection/state first sql
 	]
 
 
@@ -3814,12 +3932,18 @@ odbc: context [
 	;
 
 	length?: function [
-		"Returns number of rows of the current result set."
-		statement       [port!]
+		"Returns number of rows of the current result set or length of rowset with cursor."
+		entity          [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/length?"]
-
-		affected-rows statement/state
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				affected-rows statement/state
+			]
+			cursor [
+				fetched-rows cursor/state/statement
+			]
+		]
 	]
 
 
@@ -3827,12 +3951,18 @@ odbc: context [
 	;
 
 	index?: function [
-		"Returns number of current rows of the current result set."
-		statement       [port!]
+		"Returns number of current rows of the current result set or cursor position."
+		entity          [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/index?"]
-
-		pick-attribute statement/state 14 ;SQL_ATTR_ROW_NUMBER
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				pick-attribute statement/state 14 ;SQL_ATTR_ROW_NUMBER
+			]
+			cursor [
+				cursor/state/position
+			]
+		]
 	]
 
 
@@ -3843,11 +3973,13 @@ odbc: context [
 		"Updates statement with next result set and returns its column names or row count."
 		statement       [port!]
 	][
-		if debug-odbc? [print "actor/update"]
-
-		all [
-			more-results?    statement/state
-			describe-columns statement/state
+		switch statement/state/type [
+			statement [
+				all [
+					more-results?    statement/state
+					describe-columns statement/state
+				]
+			]
 		]
 	]
 
@@ -3859,10 +3991,12 @@ odbc: context [
 		"Copy rowset from executed SQL statement."
 		statement       [port!]
 	][
-		if debug-odbc? [print "actor/copy"]
-
-		rows: fetch-columns statement/state 'all 0
-		return-columns statement/state rows
+		switch statement/state/type [
+			statement [
+				rows: fetch-columns statement/state 'all 0
+				return-columns statement/state rows
+			]
+		]
 	]
 
 
@@ -3871,17 +4005,24 @@ odbc: context [
 
 	pick: function [
 		"Pick long data from column in current row."
-		statement       [port!]
+		entity          [port!]         "statement or cursor"
 		column          [word! integer!]
 	][
-		if debug-odbc? [print "actor/pick"]
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				unless integer? column [
+					column: 1 + to integer! divide
+						system/words/index? find/tail statement/state/columns column
+						col-field-fields: 10
+				]
 
-		unless integer? column [
-			column: 1 + to integer! divide system/words/index? find/tail statement/state/columns column 9
-														;-- 9 = odbc/col-field-fields
+				fetch-value statement/state column
+			]
+			cursor [
+				pick cursor/state/statement column
+			]
 		]
-
-		fetch-value statement/state column
 	]
 
 
@@ -3889,14 +4030,21 @@ odbc: context [
 	;
 
 	skip: function [
-		"Copy rowset from executed SQL statement at relative offset."
-		statement       [port!]
+		"Copy rowset from executed SQL statement at relative offset or move cursor."
+		entity          [port!]         "statement or cursor"
 		rows            [integer!]
 	][
-		if debug-odbc? [print "actor/skip"]
-
-		rows: fetch-columns statement/state system/words/pick [at skip] zero? rows rows
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state system/words/pick [at skip] zero? rows rows
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement new: cursor/state/position + rows
+				also cursor cursor/state/position: new
+			]
+		]
 	]
 
 
@@ -3905,13 +4053,20 @@ odbc: context [
 
 	at: function [
 		"Copy rowset from executed SQL statement at absolute position."
-		statement       [port!]
+		entity          [port!]	         "statement or cursor"
 		row             [integer!]
 	][
-		if debug-odbc? [print "actor/at"]
-
-		rows: fetch-columns statement/state 'at min statement/state/length max 0 row
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state 'at min statement/state/length max 0 row
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement row
+				also cursor cursor/state/position: row
+			]
+		]
 	]
 
 
@@ -3919,11 +4074,20 @@ odbc: context [
 	;
 
 	head: function [
-		"Retrieve first rowset from executed SQL statement."
-		statement       [port!]
+		"Retrieve first rowset from executed SQL statement or position cursor."
+		entity          [port!]         "statement or cursor"
 	][
-		rows: fetch-columns statement/state 'head 0 ;ignored
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state 'head 0 ;ignored
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement new: 0
+				also cursor cursor/state/position: new
+			]
+		]
 	]
 
 
@@ -3932,9 +4096,17 @@ odbc: context [
 
 	head?: function [
 		"Returns true if current rowset includes first row in rowset."
-		statement       [port!]
+		entity          [port!]         "statement or cursor"
 	][
-		1 = index? statement
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				1 = index? statement
+			]
+			cursor [
+				equal? cursor/state/position 0
+			]
+		]
 	]
 
 
@@ -3942,11 +4114,20 @@ odbc: context [
 	;
 
 	back: function [
-		"Retrieve previous rowset from executed SQL statement."
-		statement       [port!]
+		"Retrieve previous rowset from executed SQL statement or move cursor back a row."
+		entity          [port!]         "statement or cursor"
 	][
-		rows: fetch-columns statement/state 'back statement/state/window
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state 'back statement/state/window
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement new: cursor/state/position - 1
+				also cursor cursor/state/position: new
+			]
+		]
 	]
 
 
@@ -3955,10 +4136,19 @@ odbc: context [
 
 	next: function [
 		"Retrieve next rowset from executed SQL statement."
-		statement       [port!]
+		entity          [port!]         "statement or cursor"
 	][
-		rows: fetch-columns statement/state 'next statement/state/window
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state 'next statement/state/window
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement new: cursor/state/position + 1
+				also cursor cursor/state/position: new
+			]
+		]
 	]
 
 
@@ -3967,10 +4157,19 @@ odbc: context [
 
 	tail: function [
 		"Retrieve last rowset from executed SQL statement."
-		statement       [port!]
+		entity          [port!]         "statement or cursor"
 	][
-		rows: fetch-columns statement/state 'tail 0 ;ignored
-		return-columns statement/state rows
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				rows: fetch-columns statement/state 'tail 0 ;ignored
+				return-columns statement/state rows
+			]
+			cursor [
+				set-cursor cursor/state/statement new: length? cursor
+				also cursor cursor/state/position: new
+			]
+		]
 	]
 
 
@@ -3979,9 +4178,17 @@ odbc: context [
 
 	tail?: function [
 		"Returns true if current rowset includes last row in rowset."
-		statement       [port!]
+		entity          [port!]         "statement or cursor"
 	][
-		statement/state/length <= (statement/state/window - 1 + index? statement)
+		set [statement: cursor:] entity
+		switch entity/state/type [
+			statement [
+				statement/state/length <= (statement/state/window - 1 + index? statement)
+			]
+			cursor [
+				equal? cursor/state/position length? cursor
+			]
+		]
 	]
 
 
@@ -3992,17 +4199,18 @@ odbc: context [
 		"Close connection or statement."
 		entity          [port!] "connection or statement"
 	][
+		set [connection: statement: cursor:] entity
 		switch entity/state/type [
 			connection [
 				if debug-odbc? [print "actor/close: connection"]
 
-				connection: entity
 				statements: connection/state/statements
 
 				while [not empty? statements] [
 					statement: take statements
 					close statement/port
 				]
+
 				close-connection connection/state
 				remove find environment/connections connection/state
 
@@ -4011,13 +4219,24 @@ odbc: context [
 			statement [
 				if debug-odbc? [print "actor/close: statement"]
 
-				statement: entity
+				if cursor: statement/state/cursor [
+					close cursor/port
+				]
 
 				free-columns    statement/state
 				close-statement statement/state
 
 				remove find statement/state/connection/statements statement/state
 				statement/state/connection: none
+			]
+			cursor [
+				if debug-odbc? [print "actor/close: cursor"]
+
+				print "*** CLOSE-CURSOR not implemented"
+			;	close-cursor cursor/state
+
+				cursor/state/statement:
+				cursor/state/statement/cursor: none
 			]
 		]
 

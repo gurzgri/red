@@ -63,7 +63,7 @@ By default, opening connections won't timeout, but a timeout in
 seconds can be configured with
 
 ```Red
-system/schemes/odbc/state/login-timeout: 15
+system/schemes/odbc/state/timeout: 15
 ```
 
 *before* opening the connection port.
@@ -236,7 +236,7 @@ statement set the statements' `state/window` to
 the number of rows that will best suit your needs:
 
 ```Red
-statement/state/window: 1'000
+change statement [window: 1'000]        ;-- or statement/state/window: 1'000
 insert statement ["SELECT * FROM earthlings WHERE country = ?" "USA"]
 ```
 
@@ -260,8 +260,9 @@ To retrieve results in flat fashion, on scheme, connection or statement levelset
 
 ```Red
 system/schemes/odbc/state/flat?: yes
-connection/state/flat?: yes
-statement/state/flat?: yes
+
+change connection [flat?: yes]          ;-- or connection/state/flat?: yes
+change statement  [flat?: yes]          ;       statement/state/flat?: yes
 ```
 
 On statement and connection level, `flat?` my be set to `true` or `false` or
@@ -270,10 +271,10 @@ may be set to `none` to delegate the decision from the statement to the connecti
 ## Cursors
 
 To use a curser on a statement, prior to executing it with `insert` set its
-`state/cursor` to either `static` or `dynamic`:
+`access` state to either `static` or `dynamic`:
 
 ```Red
-statement/state/cursor: 'static
+change statement [access: 'static]      ;-- or statement/state/access: 'static
 insert statement "SELECT ..."
 ```
 
@@ -331,11 +332,11 @@ images: copy photos
 you'll have to fetch column values marked as `deferred` with the help of a cursor and `pick` each single value individually:
 
 ```Red
-photos: open album: open odbc://album
-
-photos/state/window: 1
-photos/state/cursor: 'static        ;-- or 'dynamic
-
+photos: open album: open odbc://album [access: 'static]
+change photos [
+    access: 'static                 ;-- or 'dynamic
+    window: 1
+]
 insert photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
 == [file-name image thumbnail]
 images: next photos                 ;-- retrieve first row
@@ -353,7 +354,7 @@ FFD8FFE000104A46494600010101004800480000FFE119584578696600004D4D
 002A00000008000D010F000200000006000000AA0110000200000009000000B0
 01120003000000010008...
 
-images: next photos                 ;-- advance cursor one row
+images: next photos                 ;-- fetch next rowset (of 1 row)
 ```
 
 You can only pick from columns with the `deferred` placeholder
@@ -377,7 +378,7 @@ a statement will delete the current row in your datasource:
 
 ```Red
 insert statement "SELECT * FROM Sweets WHERE Sugar = 'Too much'"
-remove statement ;-- deletes first row in result set
+remove statement                    ;-- deletes first row in result set
 ```
 
 NOTE: Not implemented yet!
@@ -525,11 +526,11 @@ customers: "SELECT * FROM Customer WHERE CustomerID = ?"
 
 statement: open database: open odbc://database
 
-insert statement [products  1] ;-- preparation and execution
-insert statement [products  2] ;-- execution only
-insert statement [customers 3] ;-- preparation and execution
-insert statement [customers 4] ;-- execution only
-insert statement [products  5] ;-- again, preparation and execution
+insert statement [products  1]      ;-- preparation and execution
+insert statement [products  2]      ;-- execution only
+insert statement [customers 3]      ;-- preparation and execution
+insert statement [customers 4]      ;-- execution only
+insert statement [products  5]      ;-- again, preparation and execution
 ```
 
 To prepare multiple statements, just `open` one statement per SQL string
@@ -561,8 +562,8 @@ The datatypes supported as parameters so far are:
 - integer!
 - logic!
 - float!
-- date! (w/o time!)
-- time!
+- date! (with or without time!)
+- time! (no fractions of seconds)
 - binary!
 
 ## Datatype Conversions
@@ -596,8 +597,8 @@ be returned as a string.
 
 # Transactions
 Transactions in ODBC are completed at the connection level. By default, ODBC
-transactions are in auto-commit mode. You may change the commit mode by setting
-`connection/state/auto-commit?` to either `yes` or `no` (manual commit mode).
+transactions are in autocommit mode. You may change the commit mode by setting
+`connection/state/commit?` to either `yes` or `no` (manual commit mode).
 
 In manual commit mode, a transaction is committed by
 
