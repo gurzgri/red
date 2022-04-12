@@ -849,6 +849,55 @@ odbc: context [
 	]
 
 
+	;--------------------------------- get-connection --
+	;
+
+	get-connection: routine [
+		connection      [object!]
+		attribute       [integer!]
+		/local
+			hdbc        [red-handle!]
+			buffer      [byte-ptr!]
+			intval      [int-ptr!]
+			buflen      [integer!]
+			length      [int-ptr!]
+			rc          [integer!]
+	][
+		#if debug? = yes [print ["GET-CONNECTION [" lf]]
+
+		hdbc: as red-handle! (object/get-values connection) + odbc/common-field-handle
+
+		intval: declare int-ptr!
+		intval/value: 0
+		buffer: as byte-ptr! intval
+		buflen: 4
+		length: declare int-ptr!
+		length/value: 0
+
+		ODBC_RESULT sql/SQLGetConnectAttr hdbc/value
+										  attribute
+										  buffer
+										  buflen
+										  length
+
+		#if debug? = yes [print ["^-SQLGetConnectAttr " rc lf]]
+
+		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+
+		if ODBC_INVALID [fire [
+			TO_ERROR(script invalid-arg) connection
+		]]
+		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
+			TO_ERROR(script bad-bad) odbc/odbc
+			as red-block! (object/get-values connection) + odbc/common-field-errors
+		]]
+
+		SET_RETURN((integer/box intval/value))
+
+		#if debug? = yes [print ["]" lf]]
+	]
+
+
 	;---------------------------------- set-statement --
 	;
 
@@ -3735,6 +3784,33 @@ odbc: context [
 	]
 
 
+	;------------------------------------------- open --
+	;
+
+	open?: function [
+		"Returns if connection is open."
+		entity          [port!] "connection"
+	][
+		set [connection: statement: cursor:] entity
+		unless entity/state [return no]
+		switch entity/state/type [
+			connection [all [
+				connection/state
+				value: attempt [
+					get-connection connection/state attr-connection-dead: 1209
+				]
+				equal? value cd-false: 0
+			]]
+			statement [
+				cause-error 'internal 'not-done []
+			]
+			cursor [
+				cause-error 'internal 'not-done []
+			]
+		]
+	]
+
+
 	;----------------------------------------- insert --
 	;
 
@@ -4214,7 +4290,10 @@ odbc: context [
 				close-connection connection/state
 				remove find environment/connections connection/state
 
+				connection/state: none
 				free-odbc
+
+				connection
 			]
 			statement [
 				if debug-odbc? [print "actor/close: statement"]
@@ -4227,7 +4306,10 @@ odbc: context [
 				close-statement statement/state
 
 				remove find statement/state/connection/statements statement/state
+
+				statement/state:
 				statement/state/connection: none
+				statement
 			]
 			cursor [
 				if debug-odbc? [print "actor/close: cursor"]
@@ -4235,8 +4317,10 @@ odbc: context [
 				print "*** CLOSE-CURSOR not implemented"
 			;	close-cursor cursor/state
 
+				cursor/state:
 				cursor/state/statement:
 				cursor/state/statement/cursor: none
+				cursor
 			]
 		]
 
