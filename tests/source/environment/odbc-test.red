@@ -67,21 +67,15 @@ Red [
 
 	--test-- "can manually commit a transaction"
 		--assert not error? try [
-			insert change open conn: open rejoin [odbc:// get-env "TESTCSV"] [commit?: no]
-				"INSERT INTO test.csv (Name, Zahl, Datum) VALUES ('Manuell', 4711, '01-01-2020')"
+			change conn: open rejoin [odbc:// get-env "TESTDSN"] [commit?: no]
+			insert open conn "UPDATE public.sourcings SET name = 'Test'"
 			insert conn 'commit
 			close conn
 		]
 
 	--test-- "can translate to native sql on connection"
 		--assert not error? try [
-			change conn: open rejoin [odbc:// get-env "TESTCSV"] "SELECT {fn CONVERT(4711, SQL_SMALLINT)}"
-			close conn
-		]
-
-	--test-- "can translate to native sql on statement"
-		--assert not error? try [
-			change open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT caption FROM depot2019.schools"
+			insert conn: open rejoin [odbc:// get-env "TESTCSV"] [native "SELECT {fn CONVERT(4711, SQL_SMALLINT)}"]
 			close conn
 		]
 
@@ -403,6 +397,14 @@ Red [
 			change test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [window: 2 access: 'static]
 			insert test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a ORDER BY a }
 			back next test
+			close conn
+		]
+
+	--test-- "can open and rename a cursor"
+		--assert not error? try [
+			conn: open rejoin [odbc:// get-env "TESTDSN"]
+			change stmt: open conn [window: 1 access: 'static]
+			change cursor: open stmt "CURROW"
 			close conn
 		]
 

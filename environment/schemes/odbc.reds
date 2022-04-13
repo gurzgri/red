@@ -2731,6 +2731,7 @@ odbc: context [
 		stmt-field-access
 		stmt-field-bookmarks?
 		stmt-field-debug?
+		stmt-field-timeout
 
 		col-field-word:             0
 		col-field-name

@@ -39,8 +39,11 @@ odbc: context [
 		]
 
 		on-change*:     func [word old new] [switch word [
-			timeout [unless any [none? new all [integer? new positive? new]] [timeout: old
-				cause-error 'script 'expect-type ['the 'timeout [positive integer! | none!]]
+			timeout [case [
+				none? new [0]
+				all [integer? new positive? new] [new]
+				all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
+				/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
 			]]
 			flat? [unless logic? new [flat?: old
 				cause-error 'script 'expect-type ['the 'flat? logic!]
@@ -87,16 +90,23 @@ odbc: context [
 		access:        'forward
 		bookmarks?:     no
 		debug?:         off
+		timeout:        none
 
 		on-change*:     func [word old new] [switch word [
 			access [either find [default forward static dynamic keyset] new [set-access self new] [access: old
 				cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
 			]]
+			bookmarks? [either logic? new [set-bookmarks self new] [bookmarks?: old
+				cause-error 'script 'expect-type ['the 'bookmarks? logic!]
+			]]
 			flat? [unless find [logic! none!] type?/word new [flat?: old
 				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
 			]]
-			bookmarks? [either logic? new [set-bookmarks self new] [bookmarks?: old
-				cause-error 'script 'expect-type ['the 'bookmarks? logic!]
+			timeout [set-query-timeout self case [
+				none? new [0]
+				all [integer? new positive? new] [new]
+				all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
+				/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
 			]]
 		]]
 	]
@@ -3706,6 +3716,20 @@ odbc: context [
 	]
 
 
+	;------------------------------ set-query-timeout --
+	;
+
+	set-query-timeout: function [
+		statement       [object!]
+		timeout         [integer!]
+	][
+		set-statement statement
+					  attr-query-timeout: 0
+					  timeout
+					  is-uinteger: FFFBh
+	]
+
+
 	;================================ actor functions ==
 	;
 	;
@@ -3768,8 +3792,6 @@ odbc: context [
 				]
 				cursor:     make cursor-proto []
 				port:       make entity [scheme: 'odbc]
-
-			;   open-cursor statement cursor
 
 				cursor/statement: statement             ;-- linkage only after success
 				statement/cursor: cursor
@@ -3937,6 +3959,14 @@ odbc: context [
 			all [connection find [commit rollback] sql] [
 				end-transaction connection/state sql = 'commit
 			]
+			all [connection block? sql equal? first sql 'native] [
+				if word? str: second sql [str: get str]
+				either string? str [
+					translate-statement connection/state str
+				][
+					cause-error 'script 'invalid-arg [sql]
+				]
+			]
 			/else [
 				cause-error 'script 'invalid-arg [sql]
 			]
@@ -3949,10 +3979,9 @@ odbc: context [
 	;
 
 	change: function [
-		"Translates SQL statement into native SQL, sets a cursor name, sets state"
-		entity          [port!]         "connection, statement or cursor"
-		sql             [string! block! object!]
-										"sql string, cursor name or state block/object"
+		"Sets state of connection or statement, renames a cursor."
+		entity          [port!]
+		sql             [block! object! string!] "state spec block or object, cursor name"
 		/local
 			access
 	][
@@ -3960,43 +3989,26 @@ odbc: context [
 		switch entity/state/type [
 			connection [
 				switch/default type?/word sql [
-					string! [
-						translate-statement connection/state sql
-					]
-					block! object! [
-						foreach word words-of spec: make object! sql [
-							connection/state/:word: spec/:word
-						]
-						connection
-					]
-				][
-					cause-error 'script 'expect-val ['string! type? sql]
-				]
+					object! block! [foreach word words-of spec: make object! sql [
+						connection/state/:word: spec/:word
+					]]
+				][	cause-error 'script 'invalid-arg [sql]]
+				connection
 			]
 			statement [
 				switch/default type?/word sql [
-					string! [
-						change statement/state/connection/port sql
-					]
-					block! object! [
-						foreach word words-of spec: make object! sql [
-							statement/state/:word: spec/:word
-						]
-						statement
-					]
-				][
-					cause-error 'script 'expect-val ['string! type? sql]
-				]
+					object! block! [foreach word words-of spec: make object! sql [
+						statement/state/:word: spec/:word
+					]]
+				][	cause-error 'script 'invalid-arg [sql]]
+				statement
 			]
 			cursor [
-				parse reduce [sql] [
-					string! (
-						name-cursor cursor/state/statement sql
-					)
-				|	copy access ['forward | 'static | 'dynamic | 'keyset] (
-						cursor/state/statement/access: access
-					)
-				|	(cause-error 'script 'expect-val ['string! type? sql])
+				switch type?/word sql [
+					object! block! [foreach word words-of spec: make object! sql [
+						cursor/state/statement/:word: spec/:word                ;-- FIXME: should this really be allowed?
+					]]
+					string! [name-cursor cursor/state/statement sql]            ;-- NOTE: a pity that I can't use RENAME for that (no string!s attached)
 				]
 				cursor
 			]
@@ -4160,7 +4172,7 @@ odbc: context [
 				return-columns statement/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: 0
+				set-cursor cursor/state/statement new: 1
 				also cursor cursor/state/position: new
 			]
 		]
@@ -4200,7 +4212,7 @@ odbc: context [
 				return-columns statement/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: cursor/state/position - 1
+				set-cursor cursor/state/statement new: max 1 cursor/state/position - 1
 				also cursor cursor/state/position: new
 			]
 		]
@@ -4221,7 +4233,7 @@ odbc: context [
 				return-columns statement/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: cursor/state/position + 1
+				set-cursor cursor/state/statement new: min cursor/state/position + 1 length? cursor
 				also cursor cursor/state/position: new
 			]
 		]

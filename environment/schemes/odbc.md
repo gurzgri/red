@@ -150,6 +150,14 @@ copy statement
     ...
 ```
 
+By default, executing statements won't timeout, but a timeout can be set in
+seconds (integer!), as time! or as none! with
+
+```Red
+change statement [timeout: 0:02]        ;-- or statement/state/timeout: 120
+```
+
+
 ### More Examples
 
 A parametrized SELECT statement:
@@ -613,14 +621,16 @@ insert connection 'rollback
 ```
 
 
-# Translating SQL
-Sometimes it can be useful to see how the ODBC driver translates the SQL
-string:
+# Native SQL
+Sometimes it can be useful to see how the ODBC driver translates an SQL
+string to native SQL:
 
 ```Red
-change statement "SELECT * FROM test.csv WHERE year = 2022"
+insert connection [native "SELECT * FROM test.csv WHERE year = 2022"]
 == {SELECT *^M^/FROM [test].csv^M^/WHERE year = 2022;^M^/}
 ```
+
+Note that this operates on a connection, not on a statement.
 
 # Catalog Functions
 
