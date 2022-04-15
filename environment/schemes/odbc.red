@@ -66,7 +66,7 @@ odbc: context [
 			commit? [either logic? new [set-commit-mode self new] [commit?: old
 				cause-error 'script 'expect-type ['the 'commit? logic!]
 			]]
-			flat? [unless find [logic! none!] type?/word new [new] [flat?: old
+			flat? [unless find [logic! none!] type?/word new [flat?: old
 				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
 			]]
 		]]
