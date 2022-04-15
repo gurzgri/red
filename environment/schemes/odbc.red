@@ -2750,11 +2750,11 @@ odbc: context [
 	return-columns: function [statement rows] [
 		if debug-odbc? [print "return-columns"]
 
-		either first find reduce [
+		either first trim reduce [
 			statement/flat?
 			statement/connection/flat?
 			environment/flat?
-		] logic! [
+		][
 			forall rows [all [
 				ref? value: first rows
 				system/words/change rows any [attempt [load value: to string! value] value]
