@@ -2717,7 +2717,7 @@ odbc: context [
 		dbc-field-environment:      5
 		dbc-field-statements
 		dbc-field-info
-		dbc-field-auto-commit
+		dbc-field-commit
 
 		stmt-field-connection:      5
 		stmt-field-cursor
