@@ -4326,8 +4326,6 @@ odbc: context [
 
 				connection/state: none
 				free-odbc
-
-				connection
 			]
 			statement [
 				if debug-odbc? [print "actor/close: statement"]
@@ -4343,18 +4341,13 @@ odbc: context [
 
 				statement/state:
 				statement/state/connection: none
-				statement
 			]
 			cursor [
 				if debug-odbc? [print "actor/close: cursor"]
 
-				print "*** CLOSE-CURSOR not implemented"
-			;	close-cursor cursor/state
-
 				cursor/state:
 				cursor/state/statement:
 				cursor/state/statement/cursor: none
-				cursor
 			]
 		]
 
