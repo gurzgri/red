@@ -61,8 +61,12 @@ odbc: context [
 		statements:     []
 		info:           none
 		commit?:        yes
+		catalog:        none
 
 		on-change*:     func [word old new] [switch word [
+			catalog [either string? new [use-catalog self new] [catalog: old
+				cause-error 'script 'expect-type ['the 'catalog string!]
+			]]
 			commit? [either logic? new [set-commit-mode self new] [commit?: old
 				cause-error 'script 'expect-type ['the 'commit? logic!]
 			]]
@@ -486,6 +490,21 @@ odbc: context [
 
 		#if debug? = yes [print ["]" lf]]
 	]
+
+
+	;------------------------------------ use-catalog --
+	;
+
+	use-catalog: routine [
+		connection      [object!]
+		catalog         [string!]
+	][
+		set-connection connection
+					   sql/attr-current-catalog
+					   as integer! unicode/to-utf16 catalog
+					   sql/is-pointer
+	]
+
 
 	;---------------------------------- pick-metadata --
 	;   with common interfaces
@@ -3806,7 +3825,7 @@ odbc: context [
 	]
 
 
-	;------------------------------------------- open --
+	;------------------------------------------ open? --
 	;
 
 	open?: function [
@@ -3992,6 +4011,9 @@ odbc: context [
 					object! block! [foreach word words-of spec: make object! sql [
 						connection/state/:word: spec/:word
 					]]
+					string! [
+						connection/state/catalog: sql
+					]
 				][	cause-error 'script 'invalid-arg [sql]]
 				connection
 			]

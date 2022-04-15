@@ -777,7 +777,7 @@ sql: context [
 	;   col-pred-basic:                               2 ;=ALL-EXCEPT-LIKE
 
 		;-- whether an attribute is a pointer or not
-	;   is-pointer:                               FFFCh ;-4
+		is-pointer:                               FFFCh ;-4
 		is-uinteger:                              FFFBh ;-5
 		is-integer:                               FFFAh ;-6
 	;   is-usmallint:                             FFF9h ;-7
@@ -2718,6 +2718,7 @@ odbc: context [
 		dbc-field-statements
 		dbc-field-info
 		dbc-field-commit
+		dbc-field-catalog
 
 		stmt-field-connection:      5
 		stmt-field-cursor
