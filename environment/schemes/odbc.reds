@@ -639,7 +639,7 @@ sql: context [
 
 	;   #if ODBCVER >= 0380h [
 	;   attr-reset-connection:                      116
-		attr-async-dbc-functions-enable:            117
+	;	attr-async-dbc-functions-enable:            117
 	;   ] ; ODBCVER >= 0380h
 
 		;-- Connection attribute 118 is defined in sqlspi.h
@@ -2716,7 +2716,6 @@ odbc: context [
 
 		dbc-field-environment:      5
 		dbc-field-statements
-		dbc-field-info
 		dbc-field-commit
 		dbc-field-catalog
 

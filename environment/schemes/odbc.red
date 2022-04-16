@@ -29,6 +29,7 @@ odbc: context [
 		connections:    []
 		timeout:        none
 
+		query:          does [do reduce [about-entity self]]
 		drivers:        does [do reduce [get-drivers]]
 		sources:        function [/user /system] [
 			do reduce case [
@@ -59,7 +60,6 @@ odbc: context [
 		flat?:          none
 		environment:    none
 		statements:     []
-		info:           none
 		commit?:        yes
 		catalog:        none
 
@@ -539,63 +539,29 @@ odbc: context [
 			type        [red-word!]
 			value       [red-value!]
 	][
-	;	#if debug? = yes [print ["PICK-METADATA [" lf]]
-
 		intptr: declare int-ptr!
-
-		hndl:   as red-handle! (object/get-values entity) + odbc/common-field-handle
-
-		type:   as red-word!   (object/get-values entity) + odbc/common-field-type
-		sym:    symbol/resolve type/symbol
-
 		buflen: 2000
 		outlen:    0
+
+		hndl:   as red-handle! (object/get-values entity) + odbc/common-field-handle
+		type:   as red-word!   (object/get-values entity) + odbc/common-field-type
+		sym:    symbol/resolve type/symbol
 
 		loop 2 [
 			buffer: allocate buflen + 1
 
 			case [
 				sym = odbc/_environment [
-					ODBC_RESULT sql/SQLGetEnvAttr hndl/value
-												  info
-												  buffer
-												  buflen
-												 :outlen
-
-				;	#if debug? = yes [print ["^-SQLGetEnvAttr(" info ") " rc lf]]
+					ODBC_RESULT sql/SQLGetEnvAttr hndl/value info buffer buflen :outlen
 				]
-				all [
-					sym = odbc/_connection
-					attribute?
-				][
-					ODBC_RESULT sql/SQLGetConnectAttr hndl/value
-													  info
-													  buffer
-													  buflen
-													 :outlen
-
-				;	#if debug? = yes [print ["^-SQLGetConnectAttr(" info ") " rc lf]]
+				all [sym = odbc/_connection attribute?] [
+					ODBC_RESULT sql/SQLGetConnectAttr hndl/value info buffer buflen :outlen
 				]
-				all [
-					sym = odbc/_connection
-					not attribute?
-				][
-					ODBC_RESULT sql/SQLGetInfo hndl/value
-											   info
-											   buffer
-											   buflen
-											  :outlen
-
-				;	#if debug? = yes [print ["^-SQLGetInfo(" info ") " rc lf]]
+				all [sym = odbc/_connection not attribute?] [
+					ODBC_RESULT sql/SQLGetInfo hndl/value info buffer buflen :outlen
 				]
 				sym = odbc/_statement [
-					ODBC_RESULT sql/SQLGetStmtAttr hndl/value
-												   info
-												   buffer
-												   buflen
-												  :outlen
-
-				;	#if debug? = yes [print ["^-SQLGetStmtAttr(" info ") " rc lf]]
+					ODBC_RESULT sql/SQLGetStmtAttr hndl/value info buffer buflen :outlen
 				]
 			]
 
@@ -621,20 +587,25 @@ odbc: context [
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) entity
 		]]
-		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
-			as red-block! (object/get-values entity) + odbc/common-field-errors
-		]]
+		if ODBC_ERROR [
+			SET_RETURN(none-value)
+			free buffer
+			exit
+		]
 
-		either attribute? [
-			intptr: as int-ptr! buffer
-			SET_RETURN((integer/box intptr/value))
-		][
-			either any [
-				;-- connections
-				;
-				info = sql/accessible-procedures        ;-- all these return strings
-				info = sql/accessible-tables            ;
+		intptr: as int-ptr! buffer
+
+		;-- strings
+		;
+		if any [
+			all [attribute? = true sym = odbc/_connection any [
+				info = sql/attr-current-catalog
+				info = sql/attr-tracefile
+				info = sql/attr-translate-lib
+			]]
+			all [attribute? = false sym = odbc/_connection any [
+				info = sql/accessible-procedures
+				info = sql/accessible-tables
 				info = sql/catalog-name
 				info = sql/catalog-name-separator
 				info = sql/catalog-term
@@ -642,7 +613,6 @@ odbc: context [
 				info = sql/column-alias
 				info = sql/data-source-name
 				info = sql/data-source-read-only
-			;   info = sql/database-name                ;-- fixme: = sql-catalog-name ?!
 				info = sql/dbms-name
 				info = sql/dbms-ver
 				info = sql/describe-parameter
@@ -670,19 +640,54 @@ odbc: context [
 				info = sql/table-term
 				info = sql/user-name
 				info = sql/xopen-cli-year
-			][
-			;	#if debug? = yes [odbc/print-buffer buffer outlen]
-
-				SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
-			][
-				intptr: as int-ptr! buffer
-				SET_RETURN((integer/box intptr/value))
-			]
+			]]
+		][
+			#if debug? = yes [odbc/print-buffer buffer outlen]
+			SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
+			free buffer
+			exit
 		]
 
-		free buffer
+		;-- handles
+		;
+		if all [attribute? = true any [
+			all [sym = odbc/_connection any [
+				info = sql/attr-async-dbc-event
+			;	info = sql/attr-async-dbc-pcallback
+			;	info = sql/attr-async-dbc-pcontext
+			;	info = sql/attr-dbc-info-token
+			;	info = sql/attr-dbc-enlist-in-dtc
+				info = sql/attr-quiet-mode
+			]]
+			all [sym = odbc/_statement any [
+				info = sql/attr-app-param-desc
+				info = sql/attr-app-row-desc
+				info = sql/attr-async-stmt-event
+			;	info = sql/attr-async-stmt-functions
+			;	info = sql/attr-async-stmt-pcallback
+			;	info = sql/attr-async-stmt-pcontext
+				info = sql/attr-fetch-bookmark-ptr
+				info = sql/attr-imp-param-desc
+				info = sql/attr-imp-row-desc
+				info = sql/attr-param-bind-offset-ptr
+				info = sql/attr-param-operation-ptr
+				info = sql/attr-param-status-ptr
+				info = sql/attr-params-processed-ptr
+				info = sql/attr-row-bind-offset-ptr
+				info = sql/attr-row-operation-ptr
+				info = sql/attr-row-status-ptr
+				info = sql/attr-rows-fetched-ptr
+			]]
+		]][
+			SET_RETURN((either zero? intptr/value [none-value] [handle/box intptr/value]))
+			free buffer
+			exit
+		]
 
-	;	#if debug? = yes [print ["]" lf]]
+		;-- integers
+		;
+		SET_RETURN((integer/box intptr/value))
+		free buffer
 	]
 
 
@@ -2793,6 +2798,68 @@ odbc: context [
 	]
 
 
+	;------------------------------ environment-attrs --
+	;
+
+	environment-attrs: [
+	;	00201 "connection-pooling"
+		00202 "cp-match" opt [
+			00000000h strict
+			00000001h relaxed
+		]
+		00200 "odbc-version" opt [
+			00000003h 3.0
+			0000017Ch 3.8
+			00000190h 4.0
+		]
+		10001 "output-nts" logic!
+	]
+
+
+	;------------------------------- connection-attrs --
+	;
+
+	connection-attrs: [
+		00101 "access-mode" opt [
+			00000000h read-write
+			00000001h read-only
+		]
+	;	00119 "async-dbc-event"
+	;	00117 "async-dbc-functions-enable" logic!
+	;	????? "async-dbc-pcallback"
+	;	????? "async-dbc-pcontext"
+		00004 "async-enable" logic!
+		10001 "auto-ipd" logic!
+		00102 "autocommit" logic!
+		01209 "connection-dead" logic!
+		00113 "connection-timeout"
+		00109 "current-catalog"
+	;	????? "dbc-info-token"
+	;	01207 "enlist-in-dtc"
+		00103 "login-timeout"
+		10014 "metadata-id" logic!
+		00110 "odbc-cursors" opt [
+			00000000h if-needed
+			00000001h odbc
+			00000002h driver
+		]
+		00112 "packet-size"
+		00111 "quiet-mode"
+		00104 "trace" logic!
+		00105 "tracefile"
+		00106 "translate-lib"
+		00107 "translate-option"
+		00108 "txn-isolation" any [
+			00000001h read-uncommitted
+			00000002h read-committed
+			00000004h repeatable-read
+			00000008h serializable
+		]
+	;	00114 "disconnect-behavior"
+	;	01208 "enlist-in-xa"
+	]
+
+
 	;------------------------------- connection-infos --
 	;
 
@@ -3597,26 +3664,105 @@ odbc: context [
 		]
 	]
 
-	about-connection: function [
-		"Collects connection information."
-		connection [object!]
+
+	;-------------------------------- statement-attrs --
+	;
+
+	statement-attrs: [
+		10011 "app-param-desc"
+		10010 "app-row-desc"
+		00004 "async-enable" logic!
+	;	      "async-stmt-event"
+	;	      "async-stmt-functions"
+	;	      "async-stmt-pcallback"
+	;	      "async-stmt-pcontext"
+		00007 "concurrency" opt [
+			00000001h read-only
+			00000002h lock
+			00000003h rowver
+			00000004h values
+		]
+		65535 "cursor-scrollable" logic!
+		65534 "cursor-sensitivity" opt [
+			00000000h #[none]
+			00000001h #[false]
+			00000002h #[true]
+		]
+		00006 "cursor-type" opt [
+			00000000h forward
+			00000001h keyset
+			00000002h dynamic
+			00000003h static
+		]
+		00015 "enable-auto-ipd" logic!
+		00016 "fetch-bookmark-ptr"
+		10013 "imp-param-desc"
+		10012 "imp-row-desc"
+		00008 "keyset-size"
+		00003 "max-length"
+		00001 "max-rows"
+		10014 "metadata-id" logic!
+		00002 "noscan" logic!
+		00017 "param-bind-offset-ptr"
+		00018 "param-bind-type" opt [
+			00000000h column
+		]
+		00019 "param-operation-ptr"
+		00020 "param-status-ptr"
+		00021 "params-processed-ptr"
+		00022 "paramset-size"
+		00000 "query-timeout"
+		00011 "retrieve-data" logic!
+		00027 "row-array-size"
+		00023 "row-bind-offset-ptr"
+		00005 "row-bind-type" opt [
+			00000000h column
+		]
+		00014 "row-number"
+		00024 "row-operation-ptr"
+		00025 "row-status-ptr"
+		00026 "rows-fetched-ptr"
+		00010 "simulate-cursor" opt [
+			00000000h non-unique
+			00000001h try-unique
+			00000002h unique
+		]
+		00012 "use-bookmarks" logic!
+	]
+
+
+	;----------------------------------- about-entity --
+	;
+
+	about-entity: function [
+		"Collects entity information/state."
+		entity          [object!]       "environment, connection or statement"
+		/infos
 		/local value name
 	][
-		if debug-odbc? [print "about-connection"]
+		if debug-odbc? [print "about-entity"]
 
-		make map! sort/skip parse connection-infos [
+		spec: switch entity/type [
+			environment [environment-attrs]
+			connection  [get system/words/pick [connection-infos connection-attrs] infos]
+			statement   [statement-attrs]
+		]
+
+		make map! sort/skip parse spec [
 			collect some [
 				set info integer!
 				set name string! (
 					if debug-odbc? [print ["info:" info name]]
 
-					info: pick-information connection info
+					info: either infos [
+						pick-information entity info
+					][
+						pick-attribute entity info
+					]
 				)
 				keep (name)
 				opt [
-					'? keep (
-						equal? info "Y"
-					)
+					'? keep (equal? "Y" info)
 				|   'any set values [word! | block!] keep (
 						if word? values [values: get values]
 						collect [foreach [value name] values [
@@ -3629,6 +3775,7 @@ odbc: context [
 							if equal? info value [break/return name]
 						]
 					)
+				|   'logic! keep (make logic! info)
 				|   keep (info)
 				]
 			]
@@ -3771,7 +3918,9 @@ odbc: context [
 				if debug-odbc? [print "actor/open: connection"]
 
 				init-odbc
+
 				connection: make connection-proto []
+				port:       entity
 
 				open-connection environment connection any [
 					entity/spec/target
@@ -3781,10 +3930,8 @@ odbc: context [
 				connection/environment: environment     ;-- linkage only after success
 				append environment/connections connection
 
-				entity/state: connection
-				entity/state/info: about-connection connection
-
-				connection/port: entity
+				port/state: connection
+				connection/port: port
 			]
 			all [entity/state entity/state/type = 'connection] [
 				if debug-odbc? [print "actor/open: statement"]
@@ -4033,6 +4180,29 @@ odbc: context [
 					string! [name-cursor cursor/state/statement sql]            ;-- NOTE: a pity that I can't use RENAME for that (no string!s attached)
 				]
 				cursor
+			]
+		]
+	]
+
+
+	;------------------------------------------ query --
+	;
+
+	query: function [
+		"Returns connection and statement state."
+		entity          [port!]         "connection or statement"
+	][
+		switch entity/state/type [
+			environment
+			statement [
+				about-entity entity/state
+			]
+			connection [make map! compose [				;-- NOTE: possible because no duplicate keys
+				(to block! about-entity/infos entity/state)
+				(to block! about-entity       entity/state)
+			]]
+			cursor [
+				cause-error 'access 'no-port-action []
 			]
 		]
 	]

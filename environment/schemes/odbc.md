@@ -68,14 +68,6 @@ system/schemes/odbc/state/timeout: 15
 
 *before* opening the connection port.
 
-## Connection Attributes
-
-Once connected, a whole whealth of connection attributes is available in the connection's metadata with
-
-```Red
-connection/state/info
-```
-
 ## Opening Statements
 Before you can execute a SQL statement, you need to acquire a statement with `open` applied to the previously opened connection:
 
@@ -631,6 +623,40 @@ insert connection [native "SELECT * FROM test.csv WHERE year = 2022"]
 ```
 
 Note that this operates on a connection, not on a statement.
+
+## State Information
+
+Once opened, a whole whealth of information about connection and statement ports is available with `query`:
+
+```Red
+query connection
+== #(
+    "accessible-procedures" false
+    "accessible-tables" false
+    "active-environments" ...
+              :
+```
+
+```Red
+query statement
+== #(
+    "app-param-desc" handle!
+    "app-row-desc" handle!
+    "async-enable" ...
+           :
+```
+
+Similiar information can be retrieved for the whole ODBC environment from the scheme with
+
+```Red
+system/schemes/odbc/state/query
+== #(
+    "cp-match" strict
+    "odbc-version" 3.0
+    "output-nts" true
+)
+```
+
 
 # Catalog Functions
 
