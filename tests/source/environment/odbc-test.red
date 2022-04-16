@@ -420,6 +420,19 @@ Red [
 
 ===end-group===
 
+===start-group=== "positioning tests"
+
+	--test-- "INDEX?  on unexecuted statement throws error" --assert error? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "HEAD?   on unexecuted statement throws error" --assert error? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "TAIL?   on unexecuted statement throws error" --assert error? try [also tail?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "LENGTH? on unexecuted statement throws error" --assert error? try [also length? open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+
+	--test-- "INDEX? after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also index?  test close conn]
+	--test-- "HEAD?  after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also head?   test close conn]
+	--test-- "TAIL?  after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also tail?   test close conn]
+
+===end-group===
+
 ===start-group=== "catalog tests"
 
 	--test-- "can catalog column privileges"    --assert not error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [column privileges "lmf" "depot2019" "schools" "school_id"] close conn]

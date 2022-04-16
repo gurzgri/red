@@ -3966,7 +3966,7 @@ odbc: context [
 				cursor/port: port
 			]
 			/else [
-				cause-error 'script 'invalig-arg [entity]
+				cause-error 'access 'no-port-action []
 			]
 		]
 	]
@@ -4192,7 +4192,7 @@ odbc: context [
 		"Returns connection and statement state."
 		entity          [port!]         "connection or statement"
 	][
-		switch entity/state/type [
+		switch/default entity/state/type [
 			environment
 			statement [
 				about-entity entity/state
@@ -4201,10 +4201,7 @@ odbc: context [
 				(to block! about-entity/infos entity/state)
 				(to block! about-entity       entity/state)
 			]]
-			cursor [
-				cause-error 'access 'no-port-action []
-			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4216,14 +4213,14 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				affected-rows statement/state
 			]
 			cursor [
 				fetched-rows cursor/state/statement
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4235,14 +4232,15 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
-			statement [
+		switch/default entity/state/type [
+			statement [any [
 				pick-attribute statement/state 14 ;SQL_ATTR_ROW_NUMBER
-			]
+				cause-error 'script 'bad-bad ['ODBC "error in function sequence"]
+			]]
 			cursor [
 				cursor/state/position
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4253,14 +4251,14 @@ odbc: context [
 		"Updates statement with next result set and returns its column names or row count."
 		statement       [port!]
 	][
-		switch statement/state/type [
+		switch/default statement/state/type [
 			statement [
 				all [
 					more-results?    statement/state
 					describe-columns statement/state
 				]
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4271,12 +4269,12 @@ odbc: context [
 		"Copy rowset from executed SQL statement."
 		statement       [port!]
 	][
-		switch statement/state/type [
+		switch/default statement/state/type [
 			statement [
 				rows: fetch-columns statement/state 'all 0
 				return-columns statement/state rows
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4289,7 +4287,7 @@ odbc: context [
 		column          [word! integer!]
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				unless integer? column [
 					column: 1 + to integer! divide
@@ -4302,7 +4300,7 @@ odbc: context [
 			cursor [
 				pick cursor/state/statement column
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4315,7 +4313,7 @@ odbc: context [
 		rows            [integer!]
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state system/words/pick [at skip] zero? rows rows
 				return-columns statement/state rows
@@ -4324,7 +4322,7 @@ odbc: context [
 				set-cursor cursor/state/statement new: cursor/state/position + rows
 				also cursor cursor/state/position: new
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4337,7 +4335,7 @@ odbc: context [
 		row             [integer!]
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state 'at min statement/state/length max 0 row
 				return-columns statement/state rows
@@ -4346,7 +4344,7 @@ odbc: context [
 				set-cursor cursor/state/statement row
 				also cursor cursor/state/position: row
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4358,7 +4356,7 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state 'head 0 ;ignored
 				return-columns statement/state rows
@@ -4367,7 +4365,7 @@ odbc: context [
 				set-cursor cursor/state/statement new: 1
 				also cursor cursor/state/position: new
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4379,14 +4377,16 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
-				1 = index? statement
+				either index: index? statement [index = 1] [
+					cause-error 'script 'bad-bad ['ODBC "error in function sequence"]
+				]
 			]
 			cursor [
 				equal? cursor/state/position 0
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4398,7 +4398,7 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state 'back statement/state/window
 				return-columns statement/state rows
@@ -4407,7 +4407,7 @@ odbc: context [
 				set-cursor cursor/state/statement new: max 1 cursor/state/position - 1
 				also cursor cursor/state/position: new
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4419,7 +4419,7 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state 'next statement/state/window
 				return-columns statement/state rows
@@ -4428,7 +4428,7 @@ odbc: context [
 				set-cursor cursor/state/statement new: min cursor/state/position + 1 length? cursor
 				also cursor cursor/state/position: new
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4440,7 +4440,7 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
 				rows: fetch-columns statement/state 'tail 0 ;ignored
 				return-columns statement/state rows
@@ -4449,7 +4449,7 @@ odbc: context [
 				set-cursor cursor/state/statement new: length? cursor
 				also cursor cursor/state/position: new
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4461,14 +4461,14 @@ odbc: context [
 		entity          [port!]         "statement or cursor"
 	][
 		set [statement: cursor:] entity
-		switch entity/state/type [
+		switch/default entity/state/type [
 			statement [
-				statement/state/length <= (statement/state/window - 1 + index? statement)
+				(length? statement) <= (statement/state/window - 1 + index? statement)
 			]
 			cursor [
 				equal? cursor/state/position length? cursor
 			]
-		]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
