@@ -29,9 +29,12 @@ odbc: context [
 		connections:    []
 		timeout:        none
 
-		query:          does [do reduce [about-entity self]]
-		drivers:        does [do reduce [get-drivers]]
-		sources:        function [/user /system] [
+		query: does [any [
+			all [handle do reduce [about-entity self]]
+			cause-error 'access 'no-port-action []
+		]]
+		drivers: does [do reduce [get-drivers]]
+		sources: function [/user /system] [
 			do reduce case [
 				user    [[get-sources/user]]
 				system  [[get-sources/system]]
@@ -39,7 +42,7 @@ odbc: context [
 			]
 		]
 
-		on-change*:     func [word old new] [switch word [
+		on-change*: func [word old new] [switch word [
 			timeout [case [
 				none? new [0]
 				all [integer? new positive? new] [new]
@@ -63,7 +66,7 @@ odbc: context [
 		commit?:        yes
 		catalog:        none
 
-		on-change*:     func [word old new] [switch word [
+		on-change*: func [word old new] [switch word [
 			catalog [either string? new [use-catalog self new] [catalog: old
 				cause-error 'script 'expect-type ['the 'catalog string!]
 			]]
@@ -96,7 +99,7 @@ odbc: context [
 		debug?:         off
 		timeout:        none
 
-		on-change*:     func [word old new] [switch word [
+		on-change*: func [word old new] [switch word [
 			access [either find [default forward static dynamic keyset] new [set-access self new] [access: old
 				cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
 			]]
@@ -1736,13 +1739,20 @@ odbc: context [
 	fetched-rows: routine [
 		statement       [object!]
 		/local
+			value       [red-value!]
 			fetched     [red-handle!]
 			rows        [int-ptr!]
 	][
-		fetched:    as red-handle! (object/get-values statement) + odbc/stmt-field-rows-fetched
-		rows:       as int-ptr! fetched/value
+		value:      (object/get-values statement) + odbc/stmt-field-rows-fetched
 
-		SET_RETURN((integer/box rows/value))
+		either TYPE_OF(value) = TYPE_INTEGER [
+			fetched:    as red-handle! value
+			rows:       as int-ptr! fetched/value
+
+			SET_RETURN((integer/box rows/value))
+		][
+			SET_RETURN(none-value)
+		]
 	]
 
 
@@ -3911,20 +3921,19 @@ odbc: context [
 
 	open: function [
 		"Connect to a datasource or open a statement or cursor."
-		entity          [port!] "connection string or connection or statement port"
+		port            [port!] "connection string or connection or statement port"
 	][
 		case [
-			none? entity/state [
+			none? port/state [
 				if debug-odbc? [print "actor/open: connection"]
 
 				init-odbc
 
 				connection: make connection-proto []
-				port:       entity
 
 				open-connection environment connection any [
-					entity/spec/target
-					rejoin ["DSN=" entity/spec/host]
+					port/spec/target
+					rejoin ["DSN=" port/spec/host]
 				]
 
 				connection/environment: environment     ;-- linkage only after success
@@ -3933,12 +3942,12 @@ odbc: context [
 				port/state: connection
 				connection/port: port
 			]
-			all [entity/state entity/state/type = 'connection] [
+			all [port/state port/state/type = 'connection] [
 				if debug-odbc? [print "actor/open: statement"]
 
-				connection: entity/state
+				connection: port/state
 				statement:  make statement-proto []
-				port:       make entity [scheme: 'odbc]
+				port:       make port [scheme: 'odbc]
 
 				open-statement connection statement
 
@@ -3948,16 +3957,16 @@ odbc: context [
 				port/state: statement
 				statement/port: port
 			]
-			all [entity/state entity/state/type = 'statement] [
+			all [port/state port/state/type = 'statement] [
 				if debug-odbc? [print "actor/open: cursor"]
 
-				statement:  entity/state
+				statement:  port/state
 
 				if statement/cursor [                   ;-- only one cursor per statement
 					cause-error 'access 'no-port-action []
 				]
 				cursor:     make cursor-proto []
-				port:       make entity [scheme: 'odbc]
+				port:       make port [scheme: 'odbc]
 
 				cursor/statement: statement             ;-- linkage only after success
 				statement/cursor: cursor
@@ -3974,28 +3983,14 @@ odbc: context [
 
 	;------------------------------------------ open? --
 	;
+	;	It seems that SQL_ATTR_CONNECTION_DEAD:1209
+	;   support isn't guaranteed, can't use
 
-	open?: function [
+	open?: func [
 		"Returns if connection is open."
-		entity          [port!] "connection"
+		port            [port!] "connection"
 	][
-		set [connection: statement: cursor:] entity
-		unless entity/state [return no]
-		switch entity/state/type [
-			connection [all [
-				connection/state
-				value: attempt [
-					get-connection connection/state attr-connection-dead: 1209
-				]
-				equal? value cd-false: 0
-			]]
-			statement [
-				cause-error 'internal 'not-done []
-			]
-			cursor [
-				cause-error 'internal 'not-done []
-			]
-		]
+		to logic! port/state
 	]
 
 
@@ -4008,85 +4003,87 @@ odbc: context [
 		Commits or rolls back all active operations on all statements associated
 		with a connection.
 		Performs catalog queries.}
-		entity          [port!]
+		port            [port!]
 		sql             [string! word! block!]  "statement w/o parameter(s) (block gets reduced) or catalog dialect"
 		/part
 			length      [integer!]
 	][
 		if debug-odbc? [print "actor/insert"]
 
-		set [connection: statement:] reduce switch entity/state/type [
-			connection [[entity none]]
-			statement  [[none entity]]
+		freeing: [
+			free-parameters port/state                  ;-- all this freeing is architecturally required for
+			free-columns    port/state                  ;   a statement whicht is already prepared and bound
+			free-statement  port/state
 		]
 
-		case [
-			all [statement any [
-				string? sql
-				all [
-					block? sql
-					string? first sql
+		string!?: [string! | none! | change 'none (none)]
+
+		query:   compose [(sql)]
+		catalog: compose [(sql) (none) (none) (none) (none) (none) (none) (none)]
+
+		switch/default port/state/type [
+			connection [case [
+				parse query ['commit | 'rollback] [
+					end-transaction port/state 'commit = first query
 				]
-			]][
-				if part [statement/state/window: length]						;-- shorthand
-
-				sql: reduce compose [(sql)]
-
-				free-parameters statement/state
-				free-columns    statement/state
-				free-statement  statement/state
-
-				unless same? statement/state/sql first sql [                    ;-- prepare only new statement
-					prepare-statement statement/state sql
-					statement/state/sql: first sql
+				parse query [[string! | set word word! if (string? get/any :word)] to end] [
+					translate-statement port/state first query
 				]
+				/else [
+					cause-error 'script 'invalid-arg [sql]
+				]
+			]]
+			statement [case [
+				parse query [[string! | set word word! if (string? get/any :word)] to end] [
+					do freeing
 
-				unless system/words/tail? params: system/words/next sql [
-					unless block? first params [
-						system/words/insert/only params take/part params system/words/length? params
+					if part [port/state/window: length]                         ;-- insert/part shorthand
+
+					string: first query: reduce compose [(query)]
+
+					unless same? port/state/sql string [                        ;-- prepare only new statement
+						prepare-statement port/state query
+						port/state/sql: string
+					]
+
+					unless system/words/tail? params: system/words/next query [
+						unless block? first params [
+							system/words/insert/only params take/part params system/words/length? params
 																				;-- treat ["..." p1 p2] as ["..." [p1 p2]] prm array with only 1 elem
-					]
-					foreach prmset params [unless block? prmset [               ;-- assert all prmsets are blocks
-						cause-error 'script 'expect-val ['block! type? prmset]
-					]]
-					unless single? unique collect [foreach prmset params [      ;-- assert all prmsets have the same length
-						keep system/words/length? prmset
-					]][
-						cause-error 'script 'invalid-arg [prmset]
-					]
-					repeat pos system/words/length? first params [
-						types: unique collect [foreach prmset params [
-							unless none? param: prmset/:pos [keep case [
-								date? param [either param/time ['datetime!] ['date!!]]
-								any-string? param ['any-string!]
-								/else [type?/word param]
-							]]
-						]]
-						unless any [
-							empty?  types               ;-- all rows in param col are #[none]
-							single? types
-						][
-							cause-error 'script 'not-same-type []
 						]
+						foreach prmset params [unless block? prmset [           ;-- assert all prmsets are blocks
+							cause-error 'script 'expect-val ['block! type? prmset]
+						]]
+						unless single? unique collect [foreach prmset params [  ;-- assert all prmsets have the same length
+							keep system/words/length? prmset
+						]][
+							cause-error 'script 'invalid-arg [prmset]
+						]
+						repeat pos system/words/length? first params [
+							types: unique collect [foreach prmset params [
+								unless none? param: prmset/:pos [keep case [
+									date? param [either param/time ['datetime!] ['date!!]]
+									any-string? param ['any-string!]
+									/else [type?/word param]
+								]]
+							]]
+							unless any [
+								empty?  types               ;-- all rows in param col are #[none]
+								single? types
+							][
+								cause-error 'script 'not-same-type []
+							]
+						]
+						bind-parameters port/state params
 					]
-					bind-parameters statement/state params
-				]
 
-				execute-statement statement/state
-				describe-columns statement/state
-			]
-			all [statement any [
-				word? sql
-				any [
-					block? sql
-					word? first sql
+					execute-statement port/state
+					describe-columns port/state
 				]
-			]][
-				string!?: [string! | none! | change 'none (none)]
-				strict?:  no
-
-				unless parse command: compose [(sql) (none) (none) (none) (none) (none) (none) (none)] [
-					opt [remove 'strict (strict?: yes)]
+				parse catalog [
+					[    remove 'strict    (strict?: yes)
+					|                      (strict?: no)
+					]
 					[   'column 'privileges 4 string!?
 					|   'columns            4 string!?
 					|   'foreign 'keys      6 string!?
@@ -4111,33 +4108,17 @@ odbc: context [
 					]
 					to end
 				][
-					cause-error 'script 'invalid-arg reduce [mold sql]
+					do freeing
+					port/state/sql: none
+
+					catalog-statement port/state catalog strict?
+					describe-columns  port/state
 				]
-
-				free-parameters   statement/state       ;-- all this freeing here is architecturally required,
-				free-columns      statement/state       ;   in case of a statement already being prepared an bound
-				free-statement    statement/state
-				statement/state/sql: none
-
-				catalog-statement statement/state command strict?
-				describe-columns  statement/state
-			]
-			all [connection find [commit rollback] sql] [
-				end-transaction connection/state sql = 'commit
-			]
-			all [connection block? sql equal? first sql 'native] [
-				if word? str: second sql [str: get str]
-				either string? str [
-					translate-statement connection/state str
-				][
+				/else [
 					cause-error 'script 'invalid-arg [sql]
 				]
-			]
-			/else [
-				cause-error 'script 'invalid-arg [sql]
-			]
-		] ;case
-
+			]]
+		][  cause-error 'access 'no-port-action []]
 	]
 
 
@@ -4146,60 +4127,58 @@ odbc: context [
 
 	change: function [
 		"Sets state of connection or statement, renames a cursor."
-		entity          [port!]
+		port            [port!]
 		sql             [block! object! string!] "state spec block or object, cursor name"
 		/local
 			access
 	][
-		set [connection: statement: cursor:] entity
-		switch entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch port/state/type [
 			connection [
 				switch/default type?/word sql [
 					object! block! [foreach word words-of spec: make object! sql [
-						connection/state/:word: spec/:word
+						port/state/:word: spec/:word
 					]]
 					string! [
-						connection/state/catalog: sql
+						port/state/catalog: sql
 					]
 				][	cause-error 'script 'invalid-arg [sql]]
-				connection
 			]
 			statement [
 				switch/default type?/word sql [
 					object! block! [foreach word words-of spec: make object! sql [
-						statement/state/:word: spec/:word
+						port/state/:word: spec/:word
 					]]
 				][	cause-error 'script 'invalid-arg [sql]]
-				statement
 			]
 			cursor [
 				switch type?/word sql [
 					object! block! [foreach word words-of spec: make object! sql [
-						cursor/state/statement/:word: spec/:word                ;-- FIXME: should this really be allowed?
+						port/state/statement/:word: spec/:word                  ;-- FIXME: should this really be allowed?
 					]]
-					string! [name-cursor cursor/state/statement sql]            ;-- NOTE: a pity that I can't use RENAME for that (no string!s attached)
+					string! [name-cursor port/state/statement sql]              ;-- NOTE: a pity that I can't use RENAME for that (no string!s attached)
 				]
-				cursor
 			]
 		]
+		port
 	]
 
 
 	;------------------------------------------ query --
 	;
 
-	query: function [
+	query: func [
 		"Returns connection and statement state."
-		entity          [port!]         "connection or statement"
+		port            [port!]         "connection or statement"
 	][
-		switch/default entity/state/type [
-			environment
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				about-entity entity/state
+				about-entity port/state
 			]
-			connection [make map! compose [				;-- NOTE: possible because no duplicate keys
-				(to block! about-entity/infos entity/state)
-				(to block! about-entity       entity/state)
+			connection [make map! compose [             ;-- NOTE: possible because no duplicate keys
+				(to block! about-entity/infos port/state)
+				(to block! about-entity       port/state)
 			]]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4210,12 +4189,12 @@ odbc: context [
 
 	length?: function [
 		"Returns number of rows of the current result set or length of rowset with cursor."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				affected-rows statement/state
+				affected-rows port/state
 			]
 			cursor [
 				fetched-rows cursor/state/statement
@@ -4229,16 +4208,16 @@ odbc: context [
 
 	index?: function [
 		"Returns number of current rows of the current result set or cursor position."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
-			statement [any [
-				pick-attribute statement/state 14 ;SQL_ATTR_ROW_NUMBER
-				cause-error 'script 'bad-bad ['ODBC "error in function sequence"]
-			]]
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
+			statement [;any [
+				pick-attribute port/state 14            ; SQL_ATTR_ROW_NUMBER
+				;cause-error 'script 'past-end []
+			];]
 			cursor [
-				cursor/state/position
+				port/state/position
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4247,17 +4226,16 @@ odbc: context [
 	;----------------------------------------- update --
 	;
 
-	update: function [
+	update: func [
 		"Updates statement with next result set and returns its column names or row count."
-		statement       [port!]
+		port            [port!]
 	][
-		switch/default statement/state/type [
-			statement [
-				all [
-					more-results?    statement/state
-					describe-columns statement/state
-				]
-			]
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
+			statement [all [
+				more-results?    port/state
+				describe-columns port/state
+			]]
 		][  cause-error 'access 'no-port-action []]
 	]
 
@@ -4267,12 +4245,13 @@ odbc: context [
 
 	copy: function [
 		"Copy rowset from executed SQL statement."
-		statement       [port!]
+		port            [port!]
 	][
-		switch/default statement/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'all 0
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'all 0
+				return-columns port/state rows
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4283,22 +4262,21 @@ odbc: context [
 
 	pick: function [
 		"Pick long data from column in current row."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 		column          [word! integer!]
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				unless integer? column [
+				if word? column [
 					column: 1 + to integer! divide
-						system/words/index? find/tail statement/state/columns column
-						col-field-fields: 10
+						system/words/index? find/tail port/state/columns column
+						10                              ; col-field-fields
 				]
-
-				fetch-value statement/state column
+				fetch-value port/state column
 			]
 			cursor [
-				pick cursor/state/statement column
+				pick port/state/statement column
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4309,18 +4287,18 @@ odbc: context [
 
 	skip: function [
 		"Copy rowset from executed SQL statement at relative offset or move cursor."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 		rows            [integer!]
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state system/words/pick [at skip] zero? rows rows
-				return-columns statement/state rows
+				rows: fetch-columns port/state system/words/pick [at skip] zero? rows rows
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: cursor/state/position + rows
-				also cursor cursor/state/position: new
+				set-cursor port/state/statement new: port/state/position + rows
+				also port port/state/position: new
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4331,18 +4309,18 @@ odbc: context [
 
 	at: function [
 		"Copy rowset from executed SQL statement at absolute position."
-		entity          [port!]	         "statement or cursor"
+		port            [port!]         "statement or cursor"
 		row             [integer!]
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'at min statement/state/length max 0 row
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'at min length? port max 0 row
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement row
-				also cursor cursor/state/position: row
+				set-cursor port/state/statement row
+				also port port/state/position: row
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4353,17 +4331,17 @@ odbc: context [
 
 	head: function [
 		"Retrieve first rowset from executed SQL statement or position cursor."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'head 0 ;ignored
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'head 0  ; ignored
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: 1
-				also cursor cursor/state/position: new
+				set-cursor port/state/statement new: 1
+				also port port/state/position: new
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4374,18 +4352,15 @@ odbc: context [
 
 	head?: function [
 		"Returns true if current rowset includes first row in rowset."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
-			statement [
-				either index: index? statement [index = 1] [
-					cause-error 'script 'bad-bad ['ODBC "error in function sequence"]
-				]
-			]
-			cursor [
-				equal? cursor/state/position 0
-			]
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
+			statement
+			cursor [all [
+				index: index? port
+				1 = index
+			]]
 		][  cause-error 'access 'no-port-action []]
 	]
 
@@ -4395,17 +4370,17 @@ odbc: context [
 
 	back: function [
 		"Retrieve previous rowset from executed SQL statement or move cursor back a row."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'back statement/state/window
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'back port/state/window
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: max 1 cursor/state/position - 1
-				also cursor cursor/state/position: new
+				set-cursor port/state/statement new: max 1 port/state/position - 1
+				also port port/state/position: new
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4416,17 +4391,17 @@ odbc: context [
 
 	next: function [
 		"Retrieve next rowset from executed SQL statement."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'next statement/state/window
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'next port/state/window
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: min cursor/state/position + 1 length? cursor
-				also cursor cursor/state/position: new
+				set-cursor port/state/statement new: min port/state/position + 1 length? port
+				also port port/state/position: new
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4437,17 +4412,17 @@ odbc: context [
 
 	tail: function [
 		"Retrieve last rowset from executed SQL statement."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
 			statement [
-				rows: fetch-columns statement/state 'tail 0 ;ignored
-				return-columns statement/state rows
+				rows: fetch-columns port/state 'tail 0  ; ignored
+				return-columns port/state rows
 			]
 			cursor [
-				set-cursor cursor/state/statement new: length? cursor
-				also cursor cursor/state/position: new
+				set-cursor port/state/statement new: length? port
+				also port port/state/position: new
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4458,15 +4433,16 @@ odbc: context [
 
 	tail?: function [
 		"Returns true if current rowset includes last row in rowset."
-		entity          [port!]         "statement or cursor"
+		port            [port!]         "statement or cursor"
 	][
-		set [statement: cursor:] entity
-		switch/default entity/state/type [
-			statement [
-				(length? statement) <= (statement/state/window - 1 + index? statement)
-			]
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch/default port/state/type [
+			statement [all [
+				index: index? port
+				(length? port) <= (port/state/window - 1 + index)
+			]]
 			cursor [
-				equal? cursor/state/position length? cursor
+				equal? port/state/position length? port
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4477,47 +4453,47 @@ odbc: context [
 
 	close: function [
 		"Close connection or statement."
-		entity          [port!] "connection or statement"
+		port            [port!]         "statement or cursor"
 	][
-		set [connection: statement: cursor:] entity
-		switch entity/state/type [
+		unless open? port [cause-error 'access 'not-open [port]]
+		switch port/state/type [
 			connection [
 				if debug-odbc? [print "actor/close: connection"]
 
-				statements: connection/state/statements
+				statements: port/state/statements
 
 				while [not empty? statements] [
 					statement: take statements
 					close statement/port
 				]
 
-				close-connection connection/state
-				remove find environment/connections connection/state
+				close-connection port/state
+				remove find environment/connections port/state
 
-				connection/state: none
+				port/state: none
 				free-odbc
 			]
 			statement [
 				if debug-odbc? [print "actor/close: statement"]
 
-				if cursor: statement/state/cursor [
+				if cursor: port/state/cursor [
 					close cursor/port
 				]
 
-				free-columns    statement/state
-				close-statement statement/state
+				free-columns    port/state
+				close-statement port/state
 
-				remove find statement/state/connection/statements statement/state
+				remove find port/state/connection/statements port/state
 
-				statement/state:
-				statement/state/connection: none
+				port/state:
+				port/state/connection: none
 			]
 			cursor [
 				if debug-odbc? [print "actor/close: cursor"]
 
-				cursor/state:
-				cursor/state/statement:
-				cursor/state/statement/cursor: none
+				port/state:
+				port/state/statement:
+				port/state/statement/cursor: none
 			]
 		]
 

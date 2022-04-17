@@ -74,9 +74,13 @@ Red [
 		]
 
 	--test-- "can translate to native sql on connection"
-		--assert not error? try [
-			insert conn: open rejoin [odbc:// get-env "TESTCSV"] [native "SELECT {fn CONVERT(4711, SQL_SMALLINT)}"]
-			close conn
+		--assert equal? "SELECT cint(4711);^M^/" try [
+			also insert conn: open rejoin [odbc:// get-env "TESTCSV"] "SELECT {fn CONVERT(4711, SQL_SMALLINT)}" close conn
+		]
+
+	--test-- "can translate to native sql with block and params"
+		--assert equal? {PARAMETERS Pa_RaM000 Value;^M^/SELECT cint(Pa_RaM000);^M^/} try [
+			also insert conn: open rejoin [odbc:// get-env "TESTCSV"] ["SELECT {fn CONVERT(?, SQL_SMALLINT)}" 4711] close conn
 		]
 
 ===end-group===
@@ -367,8 +371,8 @@ Red [
 			length? also next test close conn
 		]
 
-	--test-- "can not use INDEX? before paging"
-		--assert error? try [
+	--test-- "can use INDEX? before paging"
+		--assert none? try [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
 			test/state/window: 2
 			insert test { SELECT 1 AS a UNION SELECT 2 AS a UNION SELECT 3 AS a ORDER BY a }
@@ -422,14 +426,91 @@ Red [
 
 ===start-group=== "positioning tests"
 
-	--test-- "INDEX?  on unexecuted statement throws error" --assert error? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
-	--test-- "HEAD?   on unexecuted statement throws error" --assert error? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
-	--test-- "TAIL?   on unexecuted statement throws error" --assert error? try [also tail?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "INDEX?  on unexecuted statement return NONE"  --assert  none? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "HEAD?   on unexecuted statement return NONE"  --assert  none? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "TAIL?   on unexecuted statement return NONE"  --assert  none? try [also tail?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
 	--test-- "LENGTH? on unexecuted statement throws error" --assert error? try [also length? open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
 
-	--test-- "INDEX? after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also index?  test close conn]
-	--test-- "HEAD?  after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also head?   test close conn]
-	--test-- "TAIL?  after statement execution throws error" --assert error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also tail?   test close conn]
+	--test-- "INDEX? after statement execution returns NONE" --assert none? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also index?  test close conn]
+	--test-- "HEAD?  after statement execution returns NONE" --assert none? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also head?   test close conn]
+	--test-- "TAIL?  after statement execution returns NONE" --assert none? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also tail?   test close conn]
+
+	bite: func [series] [remove back tail series series]
+	sql:  form collect [
+		keep bite collect [repeat i 64 [keep reduce ['SELECT i 'UNION]]]
+		keep [ORDER BY 1]
+	]
+	short: func [block] [new-line/all block off]
+
+	conn: open rejoin [odbc:// get-env "TESTDSN"]
+
+	--test-- "NEXT test"
+		--assert equal? {[[1 2 3 4 5 6 7 8 9 10 11 12 13] [14 15 16 17 18 19 20 21 22 23 24 25 26] [27 28 29 30 31 32 33 34 35 36 37 38 39] [40 41 42 43 44 45 46 47 48 49 50 51 52] [53 54 55 56 57 58 59 60 61 62 63 64] []]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [until [empty? keep/only short next test]] close test
+		]
+
+	--test-- "BACK test"
+		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [39 40 41 42 43 44 45 46 47 48 49 50 51] [26 27 28 29 30 31 32 33 34 35 36 37 38] [13 14 15 16 17 18 19 20 21 22 23 24 25] [1 2 3 4 5 6 7 8 9 10 11 12 13] []]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short tail test until [empty? keep/only short back test]] close test
+		]
+
+	--test-- "AT test"
+		--assert equal? {[[64] [51 52 53 54 55 56 57 58 59 60 61 62 63] [1 2 3 4 5 6 7 8 9 10 11 12 13]]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [foreach index [91 51 1] [keep/only short at test index]] close test
+		]
+
+	--test-- "SKIP test"
+		--assert equal? {[[20 21 22 23 24 25 26 27 28 29 30 31 32] [40 41 42 43 44 45 46 47 48 49 50 51 52] [60 61 62 63 64] []]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [until [empty? keep/only short skip test 20]] close test
+		]
+
+	--test-- "HEAD/TAIL test"
+		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [1 2 3 4 5 6 7 8 9 10 11 12 13]]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short tail test keep/only short head test] close test
+		]
+
+	--test-- "HEAD? test"
+		--assert equal? {[[1 2 3 4 5 6 7 8 9 10 11 12 13] true [14 15 16 17 18 19 20 21 22 23 24 25 26] none]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short next test keep head? test keep/only short next test keep head? test] close test
+		]
+
+	--test-- "TAIL? test"
+		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] true [39 40 41 42 43 44 45 46 47 48 49 50 51] none]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short tail test keep tail? test keep/only short back test keep tail? test] close test
+		]
+
+	--test-- "before HEAD test"
+		--assert equal? "[[1 2 3 4 5 6 7 8 9 10 11 12 13] []]" try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short head test keep/only short back test] close test
+		]
+
+	--test-- "beyond TAIL test"
+		--assert equal? "[[52 53 54 55 56 57 58 59 60 61 62 63 64] []]" try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short tail test keep/only short next test] close test
+		]
+
+	--test-- "HEAD? before HEAD test"
+		--assert equal? "[[1 2 3 4 5 6 7 8 9 10 11 12 13] [] none]" try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short head test keep/only short back test keep head? test] close test
+		]
+
+	--test-- "TAIL? beyond TAIL test"
+		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [] none]} try [
+			insert change test: open conn [flat?: yes access: 'static window: 13] sql
+			also mold collect [keep/only short tail test keep/only short next test keep tail? test] close test
+		]
+
+	close conn
 
 ===end-group===
 
