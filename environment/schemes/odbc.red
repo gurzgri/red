@@ -979,12 +979,15 @@ odbc: context [
 		statement       [object!]
 		index           [integer!]
 		/local
+			cursor      [red-object!]
 			hstmt       [red-handle!]
 			rc          [integer!]
+			values      [red-value!]
 	][
 		#if debug? = yes [print ["SET-CURSOR [" lf]]
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		values: object/get-values statement
+		hstmt: 	as red-handle! values + odbc/common-field-handle
 
 		ODBC_RESULT sql/SQLSetPos hstmt/value
 								  index
@@ -1002,6 +1005,11 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
+
+		cursor:	as red-object! values + odbc/stmt-field-cursor
+		values: object/get-values cursor
+
+		copy-cell as red-value! integer/box index values + odbc/crsr-field-position
 
 		#if debug? = yes [print ["]" lf]]
 	]
@@ -4276,7 +4284,7 @@ odbc: context [
 				fetch-value port/state column
 			]
 			cursor [
-				pick port/state/statement column
+				pick port/state/statement/port column
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4297,8 +4305,12 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement new: port/state/position + rows
-				also port port/state/position: new
+				if all [
+					positive? new: port/state/position + rows
+					lesser-or-equal? new length? port
+				][
+					set-cursor port/state/statement new
+				]
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4319,8 +4331,9 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement row
-				also port port/state/position: row
+				if all [positive? row lesser-or-equal? row length? port] [
+					set-cursor port/state/statement row
+				]
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4340,8 +4353,7 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement new: 1
-				also port port/state/position: new
+				set-cursor port/state/statement 1
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4379,8 +4391,9 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement new: max 1 port/state/position - 1
-				also port port/state/position: new
+				if greater-or-equal? new: subtract port/state/position 1 1 [
+					set-cursor port/state/statement new
+				]
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4400,8 +4413,9 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement new: min port/state/position + 1 length? port
-				also port port/state/position: new
+				if lesser-or-equal? new: add port/state/position 1 length? port [
+					set-cursor port/state/statement new
+				]
 			]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4421,8 +4435,7 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				set-cursor port/state/statement new: length? port
-				also port port/state/position: new
+				set-cursor port/state/statement length? port
 			]
 		][  cause-error 'access 'no-port-action []]
 	]

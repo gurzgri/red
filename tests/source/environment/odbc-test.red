@@ -424,7 +424,7 @@ Red [
 
 ===end-group===
 
-===start-group=== "positioning tests"
+===start-group=== "rowset positioning tests"
 
 	--test-- "INDEX?  on unexecuted statement return NONE"  --assert  none? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
 	--test-- "HEAD?   on unexecuted statement return NONE"  --assert  none? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
@@ -444,70 +444,139 @@ Red [
 
 	conn: open rejoin [odbc:// get-env "TESTDSN"]
 
-	--test-- "NEXT test"
+	--test-- "can navigate to rowset with NEXT"
 		--assert equal? {[[1 2 3 4 5 6 7 8 9 10 11 12 13] [14 15 16 17 18 19 20 21 22 23 24 25 26] [27 28 29 30 31 32 33 34 35 36 37 38 39] [40 41 42 43 44 45 46 47 48 49 50 51 52] [53 54 55 56 57 58 59 60 61 62 63 64] []]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [until [empty? keep/only short next test]] close test
 		]
 
-	--test-- "BACK test"
+	--test-- "can navigate to rowset with BACK"
 		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [39 40 41 42 43 44 45 46 47 48 49 50 51] [26 27 28 29 30 31 32 33 34 35 36 37 38] [13 14 15 16 17 18 19 20 21 22 23 24 25] [1 2 3 4 5 6 7 8 9 10 11 12 13] []]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short tail test until [empty? keep/only short back test]] close test
 		]
 
-	--test-- "AT test"
+	--test-- "can navigate to rowset with AT"
 		--assert equal? {[[64] [51 52 53 54 55 56 57 58 59 60 61 62 63] [1 2 3 4 5 6 7 8 9 10 11 12 13]]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [foreach index [91 51 1] [keep/only short at test index]] close test
 		]
 
-	--test-- "SKIP test"
+	--test-- "can navigate to rowset with SKIP"
 		--assert equal? {[[20 21 22 23 24 25 26 27 28 29 30 31 32] [40 41 42 43 44 45 46 47 48 49 50 51 52] [60 61 62 63 64] []]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [until [empty? keep/only short skip test 20]] close test
 		]
 
-	--test-- "HEAD/TAIL test"
+	--test-- "can navigate to rowset with HEAD and TAIL"
 		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [1 2 3 4 5 6 7 8 9 10 11 12 13]]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short tail test keep/only short head test] close test
 		]
 
-	--test-- "HEAD? test"
+	--test-- "can check if current rowset is the HEAD? rowset"
 		--assert equal? {[[1 2 3 4 5 6 7 8 9 10 11 12 13] true [14 15 16 17 18 19 20 21 22 23 24 25 26] none]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short next test keep head? test keep/only short next test keep head? test] close test
 		]
 
-	--test-- "TAIL? test"
+	--test-- "can check if current rowset is the TAIL? rowset"
 		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] true [39 40 41 42 43 44 45 46 47 48 49 50 51] none]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short tail test keep tail? test keep/only short back test keep tail? test] close test
 		]
 
-	--test-- "before HEAD test"
+	--test-- "can navigate before HEAD rowset, returning empty rowset"
 		--assert equal? "[[1 2 3 4 5 6 7 8 9 10 11 12 13] []]" try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short head test keep/only short back test] close test
 		]
 
-	--test-- "beyond TAIL test"
+	--test-- "can navigate beyond TAIL rowset, returning empty rowset"
 		--assert equal? "[[52 53 54 55 56 57 58 59 60 61 62 63 64] []]" try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short tail test keep/only short next test] close test
 		]
 
-	--test-- "HEAD? before HEAD test"
+	--test-- "can test for HEAD? rowset before HEAD rowset"
 		--assert equal? "[[1 2 3 4 5 6 7 8 9 10 11 12 13] [] none]" try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short head test keep/only short back test keep head? test] close test
 		]
 
-	--test-- "TAIL? beyond TAIL test"
+	--test-- "can test for TAIL? rowset beyond TAIL rowset"
 		--assert equal? {[[52 53 54 55 56 57 58 59 60 61 62 63 64] [] none]} try [
 			insert change test: open conn [flat?: yes access: 'static window: 13] sql
 			also mold collect [keep/only short tail test keep/only short next test keep tail? test] close test
+		]
+
+	close conn
+
+===end-group===
+
+===start-group=== "cursor positioning tests"
+
+	sql:  form collect [
+		keep bite collect [repeat i 64 [keep 'SELECT keep rejoin ["'\x" skip form to-hex i 6 "'::BYTEA AS HEX"] keep 'UNION]]
+		keep [ORDER BY 1]
+	]
+
+	conn: open rejoin [odbc:// get-env "TESTDSN"]
+
+	--test-- "can navigate cursor to HEAD of rowset (first row)"
+		--assert equal? "[1 #{20}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 head cursor keep index? cursor keep pick cursor 'hex] close test
+		]
+
+	--test-- "can navigate cursor to TAIL of rowset (last row)"
+		--assert equal? "[8 #{27}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 tail cursor keep index? cursor keep pick cursor 'hex] close test
+		]
+
+	--test-- "can navigate cursor to row in rowset using AT"
+	  	--assert equal? "[4 #{23}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 at cursor 4 keep index? cursor keep pick cursor 'hex] close test
+		]
+
+	--test-- "can (try to) navigate out of rowset with AT, returning none"
+		--assert equal? "[none none]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 keep at cursor 16 keep at cursor -16] close test
+		]
+
+	--test-- "can navigate cursor to row in rowset using SKIP"
+		--assert equal? "[6 #{25}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 at cursor 4 skip cursor 2 keep index? cursor keep pick cursor 'hex] close test
+		]
+
+	--test-- "can (try to) navigate out of rowset with SKIP, returning none"
+		--assert equal? "[none none]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 at cursor 4 keep skip cursor 16 keep at cursor -16] close test
+		]
+
+	--test-- "can navigate forwards in rowset using NEXT"
+		--assert equal? "[1 #{20} 2 #{21} 3 #{22} 4 #{23} 5 #{24} 6 #{25} 7 #{26} 8 #{27}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 head cursor until [keep index? cursor keep pick cursor 'hex none? next cursor]] close test
+		]
+
+	--test-- "can navigate backwards in rowset using BACK"
+		--assert equal? "[8 #{27} 7 #{26} 6 #{25} 5 #{24} 4 #{23} 3 #{22} 2 #{21} 1 #{20}]" try [
+			cursor: open test: open conn
+			insert change test [flat?: yes access: 'static window: 8] sql
+			also mold short collect [at test 32 tail cursor until [keep index? cursor keep pick cursor 'hex none? back cursor]] close test
 		]
 
 	close conn
