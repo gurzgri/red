@@ -1745,7 +1745,7 @@ odbc: context [
 	][
 		value:      (object/get-values statement) + odbc/stmt-field-rows-fetched
 
-		either TYPE_OF(value) = TYPE_INTEGER [
+		either TYPE_OF(value) = TYPE_HANDLE [
 			fetched:    as red-handle! value
 			rows:       as int-ptr! fetched/value
 
