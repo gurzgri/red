@@ -1097,6 +1097,7 @@ odbc: context [
 			c-string    [c-string!]
 			c-type      [integer!]
 			column-size [integer!]
+			debug       [logic!]
 			digits      [integer!]
 			lenbuf      [int-ptr!]
 			lenslot     [int-ptr!]
@@ -1131,6 +1132,7 @@ odbc: context [
 		values:     object/get-values statement
 
 		hstmt:      as red-handle! values + odbc/common-field-handle
+		debug:           logic/get values + odbc/stmt-field-debug?
 
 		rows: block/rs-length? params
 		prms: block/rs-length? as red-block! block/rs-head params
@@ -1187,7 +1189,7 @@ odbc: context [
 						break
 					]
 					TYPE_OF(param) = TYPE_FLOAT [
-						maxlen: 4
+						maxlen: 8
 						break
 					]
 					TYPE_OF(param) = TYPE_LOGIC [
@@ -1253,31 +1255,31 @@ odbc: context [
 					TYPE_INTEGER [
 						#if debug? = yes [print ["^-^-^-TYPE_INTEGER buflen = " buflen lf]]
 
-						column-size:        4
 						sql-type:           sql/integer
 						c-type:             sql/c-long
 						val-integer:        integer/get param
 
-						copy-memory bufslot as byte-ptr! :val-integer column-size
+						copy-memory bufslot as byte-ptr! :val-integer maxlen
 
-						#if debug? = yes [odbc/print-buffer bufslot column-size]
+						#if debug? = yes [odbc/print-buffer bufslot maxlen]
 
-						bufslot:            bufslot + column-size
-						lenslot/value:      column-size
+						bufslot:            bufslot + maxlen
+						lenslot/value:      maxlen
 					]
 					TYPE_FLOAT [
-						column-size:        8
+						#if debug? = yes [print ["^-^-^-TYPE_FLOAT buflen = " buflen lf]]
+
 						sql-type:           sql/double
 						c-type:             sql/c-double
 						red-float:          as red-float! param
 						val-float:          red-float/value
 
-						copy-memory bufslot as byte-ptr! :val-float column-size
+						copy-memory bufslot as byte-ptr! :val-float maxlen
 
-						#if debug? = yes [odbc/print-buffer bufslot column-size]
+						#if debug? = yes [odbc/print-buffer bufslot maxlen]
 
-						bufslot:            bufslot + column-size
-						lenslot/value:      column-size
+						bufslot:            bufslot + maxlen
+						lenslot/value:      maxlen
 					]
 					TYPE_ANY_STRING [
 						#if debug? = yes [print ["^-^-^-TYPE_STRING buflen = " buflen lf]]
@@ -1315,7 +1317,6 @@ odbc: context [
 					TYPE_LOGIC [
 						#if debug? = yes [print ["^-^-^-TYPE_LOGIC buflen = " buflen lf]]
 
-						column-size:        1
 						digits:             1
 						sql-type:           sql/bit
 						c-type:             sql/c-bit
@@ -1330,7 +1331,6 @@ odbc: context [
 
 						red-date: as red-date! param
 						either as-logic red-date/date >> 16 and 01h [           ;-- NOTE: This is safe, INSERT actor asserts values of same type
-							column-size:    27                                  ;-- yyyy-mm-dd hh:mm:ss.fffffff
 							digits:         7
 							sql-type:       sql/type-timestamp
 							c-type:         sql/c-type-timestamp
@@ -1344,7 +1344,6 @@ odbc: context [
 										   (as integer! floor (fmod red-date/time 3600.0) /   60.0)
 									   or ((as integer!        fmod red-date/time   60.0)           << 16)
 						][
-							column-size:   10                                   ;-- yyyy-mm-dd
 							digits:         0
 							sql-type:       sql/type-date
 							c-type:         sql/c-type-date
@@ -1361,7 +1360,6 @@ odbc: context [
 					TYPE_TIME [
 						#if debug? = yes [print ["^-^-^-TYPE_TIME = " buflen lf]]
 
-						column-size:        8                                   ;-- hh:mm:ss
 						sql-type:           sql/type-time
 						c-type:             sql/c-type-time
 						red-time:           as red-time! param
@@ -1407,6 +1405,10 @@ odbc: context [
 			#if debug? = yes [print ["^-lenbuf "   lenbuf   lf]]
 
 			if zero? buflen [buffer: null]
+			if debug [
+				odbc/print-buffer buffer total
+				odbc/print-buffer as byte-ptr! lenbuf rows * size? integer!
+			]
 
 			ODBC_RESULT sql/SQLBindParameter hstmt/value
 											 prm        ;-- 1-indexed
