@@ -1096,7 +1096,7 @@ odbc: context [
 			hstmt       [red-handle!]
 			c-string    [c-string!]
 			c-type      [integer!]
-			column-size [integer!]
+			col-size    [integer!]
 			debug       [logic!]
 			digits      [integer!]
 			lenbuf      [int-ptr!]
@@ -1108,17 +1108,15 @@ odbc: context [
 			rc          [integer!]
 			red-binary  [red-binary!]
 			red-date    [red-date!]
-			red-float   [red-float!]
-			red-string  [red-string!]
 			red-time    [red-time!]
 			row         [integer!]
 			rows        [integer!]
 			size        [integer!]
 			series      [series!]
+			slotlen     [integer!]
 			sql-type    [integer!]
 			status      [red-handle!]
 			strlen      [integer!]
-			total       [integer!]
 			dt          [sql-date!]
 			tm          [sql-time!]
 			ts          [sql-timestamp!]
@@ -1154,13 +1152,13 @@ odbc: context [
 		loop prms [
 			#if debug? = yes [print ["^-prm " prm lf]]
 
-			;-- determine buflen
+			;-- determine slotlen
 			;
 
 			maxlen: 0
 			row: 1
 			loop rows [
-				#if debug? = yes [print ["^-^-buflen? row " row "/" rows lf]]
+				#if debug? = yes [print ["^-^-slotlen? row " row "/" rows lf]]
 
 				value: block/rs-abs-at params row       ;-- NOTE: correct, because rows - 1 is the SQL string itself
 				param: block/rs-abs-at as red-block! value prm - 1
@@ -1176,29 +1174,25 @@ odbc: context [
 						TYPE_OF(param) = TYPE_EMAIL
 						TYPE_OF(param) = TYPE_REF
 					][
-						buflen: (odbc/wlength? unicode/to-utf16 as red-string! param) + 1 << 1
-						#if debug? = yes [print ["^-^-^-buflen = " buflen lf]]
-						if maxlen < buflen [maxlen: buflen]
+						slotlen: (odbc/wlength? unicode/to-utf16 as red-string! param) + 1 << 1
+						#if debug? = yes [print ["^-^-^-slotlen = " slotlen lf]]
+						if maxlen < slotlen [maxlen: slotlen]
 					]
 					TYPE_OF(param) = TYPE_BINARY [
-						buflen: binary/rs-length? as red-binary! param
-						if maxlen < buflen [maxlen: buflen]
+						slotlen: binary/rs-length? as red-binary! param
+						if maxlen < slotlen [maxlen: slotlen]
 					]
 					TYPE_OF(param) = TYPE_INTEGER [
-						maxlen: 4
-						break
+						maxlen: 4 break
 					]
 					TYPE_OF(param) = TYPE_FLOAT [
-						maxlen: 8
-						break
+						maxlen: 8 break
 					]
 					TYPE_OF(param) = TYPE_LOGIC [
-						maxlen: 1
-						break
+						maxlen: 1 break
 					]
 					TYPE_OF(param) = TYPE_TIME [
-						maxlen: 6                       ;-- FIXME: size? sql-time!
-						break
+						maxlen: 6 break
 					]
 					TYPE_OF(param) = TYPE_DATE [
 						red-date: as red-date! param
@@ -1206,25 +1200,25 @@ odbc: context [
 						break
 					]
 					true [
-						maxlen: maxlen or 1
+						maxlen: 1
 					]
 				]
 
 				row: row + 1
 			]
-			buflen: maxlen
+			slotlen: maxlen
 
-			#if debug? = yes [print ["^-^-^-buflen = " buflen lf]]
+			#if debug? = yes [print ["^-^-^-slotlen = " slotlen lf]]
 
 			;-- create buffer
 			;
 
-			total:   rows * buflen
-			buffer:  allocate total
+			buflen:  rows * slotlen
+			buffer:  allocate buflen
 			bufslot: buffer
 			handle/make-in buffers as integer! buffer
 
-			#if debug? = yes [print ["^-allocate buffer, " rows * buflen " bytes @ " buffer lf]]
+			#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer lf]]
 
 			lenbuf:  as int-ptr! allocate rows * size? integer!
 			lenslot: lenbuf
@@ -1235,16 +1229,16 @@ odbc: context [
 			;-- populate buffer array
 			;
 
-			sql-type:   sql/type-null                   ;-- default in case all rows are #[none]
-			c-type:     sql/c-default                   ;
-			column-size: 0
+			c-type:     sql/c-default                   ;-- defaults
+			sql-type:   sql/type-null                   ;
+			col-size:   0
 			digits:     0
 
 			row: 1
 			loop rows [
 				#if debug? = yes [print ["^-^-populate row " row "/" rows lf]]
 
-				value: block/rs-abs-at params row       ;-- NOTE: correct, because rows - 1 is the SQL string itself
+				value: block/rs-abs-at params row                               ;-- NOTE: correct, because rows - 1 is the SQL string itself
 				param: block/rs-abs-at as red-block! value prm - 1
 
 				#if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
@@ -1253,141 +1247,95 @@ odbc: context [
 
 				switch TYPE_OF(param) [
 					TYPE_INTEGER [
-						#if debug? = yes [print ["^-^-^-TYPE_INTEGER buflen = " buflen lf]]
+						c-type:                 sql/c-long
+						sql-type:               sql/integer
 
-						sql-type:           sql/integer
-						c-type:             sql/c-long
-						val-integer:        integer/get param
+						val-integer:            integer/get param
 
-						copy-memory bufslot as byte-ptr! :val-integer maxlen
-
-						#if debug? = yes [odbc/print-buffer bufslot maxlen]
-
-						bufslot:            bufslot + maxlen
-						lenslot/value:      maxlen
+						copy-memory bufslot as byte-ptr! :val-integer slotlen
 					]
 					TYPE_FLOAT [
-						#if debug? = yes [print ["^-^-^-TYPE_FLOAT buflen = " buflen lf]]
+						c-type:                 sql/c-double
+						sql-type:               sql/double
 
-						sql-type:           sql/double
-						c-type:             sql/c-double
-						red-float:          as red-float! param
-						val-float:          red-float/value
+						val-float:              float/get param
 
-						copy-memory bufslot as byte-ptr! :val-float maxlen
-
-						#if debug? = yes [odbc/print-buffer bufslot maxlen]
-
-						bufslot:            bufslot + maxlen
-						lenslot/value:      maxlen
+						copy-memory bufslot as byte-ptr! :val-float slotlen
 					]
 					TYPE_ANY_STRING [
-						#if debug? = yes [print ["^-^-^-TYPE_STRING buflen = " buflen lf]]
+						c-type:                 sql/c-wchar
+						sql-type:               sql/wvarchar
+						col-size:               slotlen
 
-						column-size:        buflen
-						sql-type:           sql/wvarchar
-						c-type:             sql/c-wchar
-						red-string:         as red-string! param
-						c-string:           unicode/to-utf16 red-string
-						strlen:             odbc/wlength? c-string
-						lenslot/value:      strlen << 1 ;-- actual octet length w/o null-terminator
+						c-string:               unicode/to-utf16 as red-string! param
+						strlen:                 odbc/wlength? c-string
+						lenslot/value:          strlen << 1                     ;-- actual octet length w/o null-terminator
 
 						copy-memory bufslot as byte-ptr! c-string strlen + 1 << 1
-
-						bufslot:            bufslot + column-size
-
-						#if debug? = yes [odbc/print-buffer buffer total]
 					]
 					TYPE_BINARY [
-						#if debug? = yes [print ["^-^-^-TYPE_BINARY buflen = " buflen lf]]
+						c-type:                 sql/c-binary
+						sql-type:               sql/varbinary
+						col-size:               slotlen
 
-						column-size:        buflen
-						sql-type:           sql/varbinary
-						c-type:             sql/c-binary
-						red-binary:         as red-binary! param
-						lenslot/value:      binary/rs-length? red-binary
-						series:             GET_BUFFER(red-binary)
+						red-binary:             as red-binary! param
+						series:                 GET_BUFFER(red-binary)
+						lenslot/value:          binary/rs-length? red-binary
 
-						copy-memory bufslot as byte-ptr! series/offset buflen
-
-						bufslot:            bufslot + buflen
-
-						#if debug? = yes [odbc/print-buffer buffer total]
+						copy-memory bufslot as byte-ptr! series/offset lenslot/value
 					]
 					TYPE_LOGIC [
-						#if debug? = yes [print ["^-^-^-TYPE_LOGIC buflen = " buflen lf]]
+						c-type:                 sql/c-bit
+						sql-type:               sql/bit
+						digits:                 1
 
-						digits:             1
-						sql-type:           sql/bit
-						c-type:             sql/c-bit
-						bufslot/value:      as byte! logic/get param
-						bufslot:            bufslot + buflen
-						lenslot/value:      1
-
-						#if debug? = yes [odbc/print-buffer buffer total]
+						bufslot/value:          as byte! logic/get param
 					]
 					TYPE_DATE [
-						#if debug? = yes [print ["^-^-^-TYPE_DATE buflen = " buflen lf]]
+						red-date:               as red-date! param
 
-						red-date: as red-date! param
 						either as-logic red-date/date >> 16 and 01h [           ;-- NOTE: This is safe, INSERT actor asserts values of same type
-							digits:         7
-							sql-type:       sql/type-timestamp
-							c-type:         sql/c-type-timestamp
-							lenslot/value:  0
-							ts:             as sql-timestamp! bufslot
-							ts/year|month:  red-date/date >> 17 or              ;-- year
-										   (red-date/date >> 12 and 0Fh << 16)  ;-- month
-							ts/day|hour:    red-date/date >>  7 and 1Fh         ;-- day
-									   or ((as integer! floor       red-date/time         / 3600.0) << 16)
-							ts/minute|second:
-										   (as integer! floor (fmod red-date/time 3600.0) /   60.0)
-									   or ((as integer!        fmod red-date/time   60.0)           << 16)
+							c-type:             sql/c-type-timestamp
+							sql-type:           sql/type-timestamp
+							digits:             7
+
+							ts:                 as sql-timestamp! bufslot
+							ts/year|month:                                   red-date/date >> 17                 ;-- year
+												or                          (red-date/date >> 12 and 0Fh << 16)  ;-- month
+							ts/day|hour:                                     red-date/date >>  7 and 1Fh         ;-- day
+												or ((as integer! floor       red-date/time         / 3600.0) << 16)
+							ts/minute|second:       (as integer! floor (fmod red-date/time 3600.0) /   60.0)
+												or ((as integer!        fmod red-date/time   60.0          ) << 16)
 						][
-							digits:         0
-							sql-type:       sql/type-date
-							c-type:         sql/c-type-date
-							dt:             as sql-date! bufslot
-							dt/year|month:  red-date/date >> 17 or              ;-- year
-										   (red-date/date >> 12 and 0Fh << 16)  ;-- month
-						;   dt/day|pad:     red-date/date >>  7 and 1Fh
-							val-integer:    red-date/date >>  7 and 1Fh
-							dt/daylo:       as byte! val-integer
-							dt/dayhi:       as byte! 0
+							c-type:             sql/c-type-date
+							sql-type:           sql/type-date
+							digits:             0
+
+							dt:                 as sql-date! bufslot
+							dt/year|month:                                   red-date/date >> 17 or              ;-- year
+																			(red-date/date >> 12 and 0Fh << 16)  ;-- month
+							dt/daylo:           as byte!                     red-date/date >>  7 and 1Fh
+							dt/dayhi:           as byte! 0
 						]
-						bufslot:            bufslot + buflen
 					]
 					TYPE_TIME [
-						#if debug? = yes [print ["^-^-^-TYPE_TIME = " buflen lf]]
+						c-type:                 sql/c-type-time
+						sql-type:               sql/type-time
 
-						sql-type:           sql/type-time
-						c-type:             sql/c-type-time
-						red-time:           as red-time! param
-
-						tm:                 as sql-time! bufslot
-						tm/hour|minute:    (as integer! floor       red-time/time         / 3600.0)
-									   or ((as integer! floor (fmod red-time/time 3600.0) /   60.0) << 16)
-					;   tm/second|pad:      as integer!        fmod red-time/time   60.0
-						val-integer:        as integer!        fmod red-time/time   60.0
-						tm/seclo:           as byte! val-integer
-						tm/sechi:           as byte! 0
-
-						bufslot:            bufslot + buflen
-					]
-					TYPE_NONE [
-						#if debug? = yes [print ["^-^-^-TYPE_NONE buflen = " buflen lf]]
-
-						bufslot:            bufslot + buflen
-						lenslot/value:      sql/null-data
+						red-time:               as red-time! param
+						tm:                     as sql-time! bufslot
+						tm/hour|minute:        (as integer!                  red-time/time         / 3600.0)
+										   or ((as integer!            (fmod red-time/time 3600.0) /   60.0) << 16)
+						val-integer:            as integer!             fmod red-time/time   60.0
+						tm/seclo:               as byte! val-integer
+						tm/sechi:               as byte! 0
 					]
 					default [
-						#if debug? = yes [print ["^-^-^-default buflen = " buflen lf]]
-						bufslot:            bufslot  + buflen
-						c-type:             sql/c-default
-
-						lenslot/value:      sql/null-data
+						lenslot/value:          sql/null-data					;-- TYPE_NONE in particular
 					]
 				]
+
+				bufslot: bufslot + slotlen
 				lenslot: lenslot + 1
 				row:     row     + 1
 			]
@@ -1398,15 +1346,16 @@ odbc: context [
 			#if debug? = yes [print ["^-prm    "   prm      lf]]
 			#if debug? = yes [print ["^-C-type "   c-type   lf]]
 			#if debug? = yes [print ["^-SQL-type " sql-type lf]]
-			#if debug? = yes [print ["^-col-size " column-size lf]]
+			#if debug? = yes [print ["^-col-size " col-size lf]]
 			#if debug? = yes [print ["^-digits "   digits   lf]]
 			#if debug? = yes [print ["^-buffer "   buffer   lf]]
-			#if debug? = yes [print ["^-buflen "   buflen   lf]]
+			#if debug? = yes [print ["^-slotlen "  slotlen  lf]]
 			#if debug? = yes [print ["^-lenbuf "   lenbuf   lf]]
 
 			if zero? buflen [buffer: null]
+
 			if debug [
-				odbc/print-buffer buffer total
+				odbc/print-buffer              buffer buflen
 				odbc/print-buffer as byte-ptr! lenbuf rows * size? integer!
 			]
 
@@ -1415,10 +1364,10 @@ odbc: context [
 											 sql/param-input
 											 c-type
 											 sql-type
-											 column-size
+											 col-size
 											 digits
 											 buffer
-											 buflen
+											 slotlen
 											 lenbuf
 
 			#if debug? = yes [print ["^-SQLBindParameter " rc lf]]
