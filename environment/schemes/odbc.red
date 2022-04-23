@@ -4222,15 +4222,14 @@ odbc: context [
 	pick: function [
 		"Pick long data from column in current row."
 		port            [port!]         "statement or cursor"
-		column          [word! integer!]
+		column          [word! string! integer!]
 	][
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
-				if word? column [
-					column: 1 + to integer! divide
-						system/words/index? find/tail port/state/columns column
-						10                              ; col-field-fields
+				if any [word? column string? column] [
+					index: system/words/index? find port/state/columns column
+					column: round/to/ceiling index / 10 1                       ;-- odbc/col-field-fields
 				]
 				fetch-value port/state column
 			]
