@@ -4443,7 +4443,10 @@ odbc: context [
 					close cursor/port
 				]
 
+				free-parameters port/state
 				free-columns    port/state
+				free-statement  port/state
+
 				close-statement port/state
 
 				remove find port/state/connection/statements port/state
