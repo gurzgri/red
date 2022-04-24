@@ -2649,6 +2649,26 @@ odbc: context [
 	;  ██      ██   ██ ██   ████   ██   ██    ██    ███████
 	;
 
+
+	;----------------------------------- system/words --
+	;
+
+	head*:    :system/words/head
+	head?*:   :system/words/head?
+	tail*:    :system/words/tail
+	tail?*:   :system/words/tail?
+	next*:    :system/words/next
+	back*:    :system/words/back
+	skip*:    :system/words/skip
+	at*:      :system/words/at
+	pick*:    :system/words/pick
+	insert*:  :system/words/insert
+	length?*: :system/words/length?
+	index?*:  :system/words/index?
+	change*:  :system/words/change
+	copy*:    :system/words/copy
+
+
 	;-------------------------------------- init-odbc --
 	;
 
@@ -2708,12 +2728,12 @@ odbc: context [
 		;	in description block, return the words only
 
 		new-line/all collect [until [
-			system/words/change columns keep any [
+			change* columns keep any [
 				attempt [to word! as-column column: second columns]
 				column
 			]
 			new-line columns on
-			system/words/tail? columns: system/words/skip columns col-field-fields: 10
+			tail?* columns: skip* columns 10            ;-- odbc/col-field-fields
 		]] off
 	]
 
@@ -2726,13 +2746,13 @@ odbc: context [
 		lower: charset [#"a" - #"z" #"ß" - #"ö" #"ø" - #"ÿ"]
 		char:  union upper lower
 		digit: charset "1234567890"
-		parse/case column: system/words/copy column [
+		parse/case column: copy* column [
 			any [
 				change ["_" | "." | " "] "-"
 			|   here: upper upper lower
-				(here: system/words/change/part here rejoin [here/1 "-" here/2 here/3] 3) :here
+				(here: change*/part here rejoin [here/1 "-" here/2 here/3] 3) :here
 			|   here: [lower upper | char digit | digit char]
-				(here: system/words/back system/words/change/part here rejoin [here/1 "-" here/2] 2) :here
+				(here: back* change*/part here rejoin [here/1 "-" here/2] 2) :here
 			|   skip
 			]
 		]
@@ -2767,19 +2787,19 @@ odbc: context [
 		][
 			forall rows [all [
 				ref? value: first rows
-				system/words/change rows any [attempt [load value: to string! value] value]
+				change* rows any [attempt [load value: to string! value] value]
 			]]
 
-			columns: divide system/words/length? statement/columns col-field-fields: 10
+			columns: (length?* statement/columns) / 10  ;-- odbc/col-field-fields
 
-			new-line/skip/all system/words/head rows on columns
+			new-line/skip/all head* rows on columns
 		][
 			foreach row rows [forall row [all [
 				ref? value: first row
-				system/words/change row any [attempt [load value: to string! value] value]
+				change* row any [attempt [load value: to string! value] value]
 			]]]
 
-			new-line/all system/words/head rows on
+			new-line/all head* rows on
 		]
 	]
 
@@ -3730,7 +3750,7 @@ odbc: context [
 
 		spec: switch entity/type [
 			environment [environment-attrs]
-			connection  [get system/words/pick [connection-infos connection-attrs] infos]
+			connection  [get pick* [connection-infos connection-attrs] infos]
 			statement   [statement-attrs]
 		]
 
@@ -3786,7 +3806,7 @@ odbc: context [
 
 		init-odbc
 		drivers: collect [foreach [desc attrs] list-drivers environment [
-			attrs: split system/words/head remove system/words/back system/words/tail attrs #"^@"
+			attrs: split head* remove back* tail* attrs #"^@"
 			attrs: to map! collect [foreach attr attrs [keep split attr #"="]]
 			keep reduce [desc attrs]
 		]]
@@ -3827,10 +3847,9 @@ odbc: context [
 		connection      [object!]
 		auto?           [logic!]
 	][
-		set-connection connection
-					   attr-autocommit: 102
-					   either auto? [on: 1] [off: 0]
-					   is-uinteger: FFFBh
+		set-connection connection 102                   ;-- sql/attr-autocommit
+								  make integer! auto?   ;   sql/autocommit-on, -off
+								  FFFBh                 ;   sql/is-uinteger
 	]
 
 
@@ -3839,18 +3858,17 @@ odbc: context [
 
 	set-access: function [
 		statement       [object!]
-		value           [word!]
+		access          [word!]
 	][
-		if value = 'keyset [
+		if access = 'keyset [
 			cause-error 'internal 'not-done []
 		]
 
-		value: select [forward 0 keyset 1 dynamic 2 static 3 default 0] value
+		access: select [forward 0 keyset 1 dynamic 2 static 3 default 0] access
 
-		set-statement statement
-					  attr-cursor-type: 6
-					  value
-					  is-uinteger: FFFBh
+		set-statement statement 6                       ;-- sql/attr-cursor-type
+								access                  ;   sql/cursor-*
+								FFFBh                   ;   sql/is-uinteger
 	]
 
 
@@ -3859,12 +3877,13 @@ odbc: context [
 
 	set-bookmarks: function [
 		statement       [object!]
-		value           [logic!]
+		bookmarks?      [logic!]
 	][
-		set-statement statement
-					  attr-use-bookmarks: 12
-					  either value [ub-variable: 2] [ub-off: 0]
-					  is-uinteger: FFFBh
+		bookmarks?: pick* [2 0] bookmarks?
+
+		set-statement statement 12                      ;-- sql/attr-use-bookmarks
+								bookmarks?              ;   sql/ub-variable, sql/ub-off
+								FFFBh                   ;   sql/is-uinteger
 	]
 
 
@@ -3875,10 +3894,9 @@ odbc: context [
 		statement       [object!]
 		timeout         [integer!]
 	][
-		set-statement statement
-					  attr-query-timeout: 0
-					  timeout
-					  is-uinteger: FFFBh
+		set-statement statement 0                       ;-- sql/attr-query-timeout
+								timeout                 ;
+								FFFBh                   ;   sql/is-uinteger
 	]
 
 
@@ -4063,20 +4081,20 @@ odbc: context [
 						port/state/sql: string
 					]
 
-					unless system/words/tail? params: system/words/next query [
+					unless tail?* params: next* query [
 						unless block? first params [
-							system/words/insert/only params take/part params system/words/length? params
+							insert*/only params take/part params length?* params
 																				;-- treat ["..." p1 p2] as ["..." [p1 p2]] prm array with only 1 elem
 						]
 						foreach prmset params [unless block? prmset [           ;-- assert all prmsets are blocks
 							cause-error 'script 'expect-val ['block! type? prmset]
 						]]
 						unless single? unique collect [foreach prmset params [  ;-- assert all prmsets have the same length
-							keep system/words/length? prmset
+							keep length?* prmset
 						]][
 							cause-error 'script 'invalid-arg [prmset]
 						]
-						repeat pos system/words/length? first params [
+						repeat pos length?* first params [
 							types: unique collect [foreach prmset params [
 								unless none? param: prmset/:pos [keep case [
 									date? param [either param/time ['datetime!] ['date!!]]
@@ -4269,7 +4287,7 @@ odbc: context [
 		switch/default port/state/type [
 			statement [
 				if any [word? column string? column] [
-					index: system/words/index? find port/state/columns column
+					index: index?* find port/state/columns column
 					column: round/to/ceiling index / 10 1                       ;-- odbc/col-field-fields
 				]
 				fetch-value port/state column
@@ -4294,7 +4312,7 @@ odbc: context [
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
-				rows: fetch-columns port/state system/words/pick [at skip] zero? rows rows
+				rows: fetch-columns port/state pick* [at skip] zero? rows rows
 				return-columns port/state rows
 			]
 			cursor [
