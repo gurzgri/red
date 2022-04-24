@@ -1594,7 +1594,7 @@ odbc: context [
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
-		#if debug? = yes [print ["]" rc lf]]
+		#if debug? = yes [print ["]" lf]]
 	]
 
 
