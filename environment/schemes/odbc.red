@@ -3966,6 +3966,8 @@ odbc: context [
 		sql             [string! word! block!]  "statement w/o parameter(s) (block gets reduced) or catalog dialect"
 		/part
 			length      [integer!]
+		/local
+			word
 	][
 		if debug-odbc? [print "actor/insert"]
 
@@ -3993,6 +3995,43 @@ odbc: context [
 				]
 			]]
 			statement [case [
+				parse catalog [                                                 ;-- needs to tested first to avoid cases where a catalog function name word is bound to a string value
+					[    remove 'strict    (strict?: yes)
+					|                      (strict?: no)
+					]
+					[   'column 'privileges 4 string!?
+					|   'columns            4 string!?
+					|   'foreign 'keys      6 string!?
+					|   'special 'columns   ['unique | 'update | none! | change 'none (none)]
+											3 string!?
+											['row | 'transaction | 'session | none! | change 'none (none)]
+											[   logic!
+											|   change ['yes | 'true  | 'on ] (on)
+											|   change ['no  | 'false | 'off] (off)
+											|   none!
+											|   change 'none (none)
+											]
+					|   'primary 'keys      3 string!?
+					|   'procedure 'columns 4 string!?
+					|   'procedures         3 string!?
+					|   'statistics         3 string!?
+											['all | 'unique | none! | change 'none (none)]
+														;-- TODO: SQL_QUICK vs. SQL_ENSURE not supported!
+					|   'table 'privileges  3 string!?
+					|   'tables             4 string!?
+					|   'types                          ;-- TODO: datatype arg not supported yet
+					]
+					to end
+				][
+					do freeing
+
+					if part [port/state/window: length]                         ;-- insert/part shorthand
+
+					port/state/sql: none
+
+					catalog-statement port/state catalog strict?
+					describe-result port/state
+				]
 				parse query [[string! | set word word! if (string? get/any :word)] to end] [
 					do freeing
 
