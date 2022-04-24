@@ -98,6 +98,8 @@ odbc: context [
 		bookmarks?:     no
 		debug?:         off
 		timeout:        none
+		position:       none
+		length:         none
 
 		on-change*: func [word old new] [switch word [
 			access [either find [default forward static dynamic keyset] new [set-access self new] [access: old
@@ -2686,16 +2688,18 @@ odbc: context [
 	]
 
 
-	;------------------------------- describe-columns --
+	;-------------------------------- describe-result --
 	;
 
-	describe-columns: function [
+	describe-result: function [
 		statement [object!]
 	][
-		if debug-odbc? [print "describe-columns"]
+		if debug-odbc? [print "describe-result"]
+
+		statement/length: affected-rows statement
 
 		if zero? cols: count-columns statement [
-			return affected-rows statement				;-- exit early with # rows
+			return statement/length                     ;-- exit early with # rows
 		]
 
 		statement/columns: columns: bind-columns statement cols
@@ -2748,6 +2752,13 @@ odbc: context [
 
 	return-columns: function [statement rows] [
 		if debug-odbc? [print "return-columns"]
+
+		statement/position: pick-attribute statement 14 ;-- sql/attr-row-number
+
+		all [
+			statement/cursor
+			statement/cursor/position: 0
+		]
 
 		either first trim reduce [
 			statement/flat?
@@ -4084,41 +4095,7 @@ odbc: context [
 					]
 
 					execute-statement port/state
-					describe-columns port/state
-				]
-				parse catalog [
-					[    remove 'strict    (strict?: yes)
-					|                      (strict?: no)
-					]
-					[   'column 'privileges 4 string!?
-					|   'columns            4 string!?
-					|   'foreign 'keys      6 string!?
-					|   'special 'columns   ['unique | 'update | none! | change 'none (none)]
-											3 string!?
-											['row | 'transaction | 'session | none! | change 'none (none)]
-											[   logic!
-											|   change ['yes | 'true  | 'on ] (on)
-											|   change ['no  | 'false | 'off] (off)
-											|   none!
-											|   change 'none (none)
-											]
-					|   'primary 'keys      3 string!?
-					|   'procedure 'columns 4 string!?
-					|   'procedures         3 string!?
-					|   'statistics         3 string!?
-											['all | 'unique | none! | change 'none (none)]
-														;-- TODO: SQL_QUICK vs. SQL_ENSURE not supported!
-					|   'table 'privileges  3 string!?
-					|   'tables             4 string!?
-					|   'types                          ;-- TODO: datatype arg not supported yet
-					]
-					to end
-				][
-					do freeing
-					port/state/sql: none
-
-					catalog-statement port/state catalog strict?
-					describe-columns  port/state
+					describe-result port/state
 				]
 				/else [
 					cause-error 'script 'invalid-arg [sql]
@@ -4206,7 +4183,7 @@ odbc: context [
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
-				affected-rows port/state
+				port/state/length
 			]
 			cursor [
 				fetched-rows cursor/state/statement
@@ -4226,10 +4203,9 @@ odbc: context [
 
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
-			statement [;any [
-				pick-attribute port/state 14            ; SQL_ATTR_ROW_NUMBER
-				;cause-error 'script 'past-end []
-			];]
+			statement [
+				port/state/position
+			]
 			cursor [
 				port/state/position
 			]
@@ -4249,8 +4225,12 @@ odbc: context [
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [all [
-				more-results?    port/state
-				describe-columns port/state
+				more-results?   port/state
+
+				free-parameters port/state                  ;-- all this freeing is architecturally required for
+				free-columns    port/state                  ;   a statement whicht is already prepared and bound
+
+				describe-result port/state
 			]]
 		][  cause-error 'access 'no-port-action []]
 	]
@@ -4412,8 +4392,8 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				if greater-or-equal? new: subtract port/state/position 1 1 [
-					set-cursor port/state/statement new
+				if 1 < row: port/state/position [
+					set-cursor port/state/statement row - 1
 				]
 			]
 		][  cause-error 'access 'no-port-action []]
@@ -4436,8 +4416,8 @@ odbc: context [
 				return-columns port/state rows
 			]
 			cursor [
-				if lesser-or-equal? new: add port/state/position 1 length? port [
-					set-cursor port/state/statement new
+				if (row: port/state/position) < length? port [
+					set-cursor port/state/statement row + 1
 				]
 			]
 		][  cause-error 'access 'no-port-action []]

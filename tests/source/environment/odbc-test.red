@@ -426,10 +426,10 @@ Red [
 
 ===start-group=== "rowset positioning tests"
 
-	--test-- "INDEX?  on unexecuted statement return NONE"  --assert  none? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
-	--test-- "HEAD?   on unexecuted statement return NONE"  --assert  none? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
-	--test-- "TAIL?   on unexecuted statement return NONE"  --assert  none? try [also tail?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
-	--test-- "LENGTH? on unexecuted statement throws error" --assert error? try [also length? open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "INDEX?  on unexecuted statement returns NONE"  --assert none? try [also index?  open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "HEAD?   on unexecuted statement returns NONE"  --assert none? try [also head?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "TAIL?   on unexecuted statement returns NONE"  --assert none? try [also tail?   open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
+	--test-- "LENGTH? on unexecuted statement returns zero"  --assert zero? try [also length? open conn: open rejoin [odbc:// get-env "TESTDSN"] close conn]
 
 	--test-- "INDEX? after statement execution returns NONE" --assert none? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also index?  test close conn]
 	--test-- "HEAD?  after statement execution returns NONE" --assert none? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] "SELECT * FROM public.schools" also head?   test close conn]
