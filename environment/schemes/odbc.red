@@ -3984,9 +3984,24 @@ odbc: context [
 		"Returns if connection is open."
 		port            [port!] "connection"
 	][
-		if debug-odbc? [print "actor/open?"]
+		if debug-odbc? [print "OPEN? actor"]
 
 		to logic! port/state
+	]
+
+
+	;--------------------------------------- dispatch --
+	;
+
+	dispatch: func [action port code] [
+		if debug-odbc? [print [uppercase form action "actor"]]
+
+		unless open? port [
+			cause-error 'access 'not-open [port]
+		]
+		switch/default port/state/type code [
+			cause-error 'access 'no-port-action [port]
+		]
 	]
 
 
@@ -4006,8 +4021,6 @@ odbc: context [
 		/local
 			word
 	][
-		if debug-odbc? [print "actor/insert"]
-
 		freeing: [
 			free-parameters port/state                  ;-- all this freeing is architecturally required for
 			free-columns    port/state                  ;   a statement whicht is already prepared and bound
@@ -4019,7 +4032,7 @@ odbc: context [
 		query:   compose [(sql)]
 		catalog: compose [(sql) (none) (none) (none) (none) (none) (none) (none)]
 
-		switch/default port/state/type [
+		dispatch 'insert port [
 			connection [case [
 				parse query ['commit | 'rollback] [
 					end-transaction port/state 'commit = first query
@@ -4119,7 +4132,7 @@ odbc: context [
 					cause-error 'script 'invalid-arg [sql]
 				]
 			]]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4133,10 +4146,7 @@ odbc: context [
 		/local
 			access
 	][
-		if debug-odbc? [print ["actor/change" mold sql]]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch port/state/type [
+		dispatch 'change port [
 			connection [
 				switch/default type?/word sql [
 					object! block! [foreach word words-of spec: make object! sql [
@@ -4174,10 +4184,7 @@ odbc: context [
 		"Returns connection and statement state."
 		port            [port!]         "connection or statement"
 	][
-		if debug-odbc? [print "actor/query"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'query port [
 			statement [
 				about-entity port/state
 			]
@@ -4185,7 +4192,7 @@ odbc: context [
 				(to block! about-entity/infos port/state)
 				(to block! about-entity       port/state)
 			]]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4196,17 +4203,10 @@ odbc: context [
 		"Returns number of rows of the current result set or length of rowset with cursor."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/length?"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
-			statement [
-				port/state/length
-			]
-			cursor [
-				fetched-rows cursor/state/statement
-			]
-		][  cause-error 'access 'no-port-action []]
+		dispatch 'length? port [
+			statement [ port/state/length ]
+			cursor    [ fetched-rows cursor/state/statement ]
+		]
 	]
 
 
@@ -4217,17 +4217,12 @@ odbc: context [
 		"Returns number of current rows of the current result set or cursor position."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/index?"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
-			statement [
-				port/state/position
-			]
+		dispatch 'index? port [
+			statement
 			cursor [
 				port/state/position
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4238,10 +4233,7 @@ odbc: context [
 		"Updates statement with next result set and returns its column names or row count."
 		port            [port!]
 	][
-		if debug-odbc? [print "actor/update"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'update port [
 			statement [all [
 				more-results?   port/state
 
@@ -4250,7 +4242,7 @@ odbc: context [
 
 				describe-result port/state
 			]]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4261,15 +4253,12 @@ odbc: context [
 		"Copy rowset from executed SQL statement."
 		port            [port!]
 	][
-		if debug-odbc? [print "actor/copy"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'copy port [
 			statement [
 				rows: fetch-columns port/state 'all 0
 				return-columns port/state rows
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4281,10 +4270,7 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		column          [word! string! integer!]
 	][
-		if debug-odbc? [print ["actor/pick " column]]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'pick port [
 			statement [
 				if any [word? column string? column] [
 					index: index?* find port/state/columns column
@@ -4295,7 +4281,7 @@ odbc: context [
 			cursor [
 				pick port/state/statement/port column
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4307,23 +4293,17 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		rows            [integer!]
 	][
-		if debug-odbc? [print ["actor/skip" rows]]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'skip port [
 			statement [
 				rows: fetch-columns port/state pick* [at skip] zero? rows rows
 				return-columns port/state rows
 			]
-			cursor [
-				if all [
-					positive? new: port/state/position + rows
-					lesser-or-equal? new length? port
-				][
-					set-cursor port/state/statement new
-				]
-			]
-		][  cause-error 'access 'no-port-action []]
+			cursor [all [
+				1 <= row: port/state/position + rows
+				row <= length? port
+				set-cursor port/state/statement row
+			]]
+		]
 	]
 
 
@@ -4335,20 +4315,17 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		row             [integer!]
 	][
-		if debug-odbc? [print ["actor/at" row]]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'at port [
 			statement [
 				rows: fetch-columns port/state 'at min length? port max 0 row
 				return-columns port/state rows
 			]
-			cursor [
-				if all [positive? row lesser-or-equal? row length? port] [
-					set-cursor port/state/statement row
-				]
-			]
-		][  cause-error 'access 'no-port-action []]
+			cursor [all [
+				1 <= row
+				row <= length? port
+				set-cursor port/state/statement row
+			]]
+		]
 	]
 
 
@@ -4359,10 +4336,7 @@ odbc: context [
 		"Retrieve first rowset from executed SQL statement or position cursor."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/head"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'head port [
 			statement [
 				rows: fetch-columns port/state 'head 0  ; ignored
 				return-columns port/state rows
@@ -4370,7 +4344,7 @@ odbc: context [
 			cursor [
 				set-cursor port/state/statement 1
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4381,16 +4355,13 @@ odbc: context [
 		"Returns true if current rowset includes first row in rowset."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/head?"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'head? port [
 			statement
 			cursor [all [
 				index: index? port
 				1 = index
 			]]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4401,10 +4372,7 @@ odbc: context [
 		"Retrieve previous rowset from executed SQL statement or move cursor back a row."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/back"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'back port [
 			statement [
 				rows: fetch-columns port/state 'back port/state/window
 				return-columns port/state rows
@@ -4414,7 +4382,7 @@ odbc: context [
 					set-cursor port/state/statement row - 1
 				]
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4425,10 +4393,7 @@ odbc: context [
 		"Retrieve next rowset from executed SQL statement."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/next"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'next port [
 			statement [
 				rows: fetch-columns port/state 'next port/state/window
 				return-columns port/state rows
@@ -4438,7 +4403,7 @@ odbc: context [
 					set-cursor port/state/statement row + 1
 				]
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4449,10 +4414,7 @@ odbc: context [
 		"Retrieve last rowset from executed SQL statement."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/tail"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'tail port [
 			statement [
 				rows: fetch-columns port/state 'tail 0  ; ignored
 				return-columns port/state rows
@@ -4460,7 +4422,7 @@ odbc: context [
 			cursor [
 				set-cursor port/state/statement length? port
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4471,10 +4433,7 @@ odbc: context [
 		"Returns true if current rowset includes last row in rowset."
 		port            [port!]         "statement or cursor"
 	][
-		if debug-odbc? [print "actor/tail?"]
-
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch/default port/state/type [
+		dispatch 'tail? port [
 			statement [all [
 				index: index? port
 				(length? port) <= (port/state/window - 1 + index)
@@ -4482,7 +4441,7 @@ odbc: context [
 			cursor [
 				equal? port/state/position length? port
 			]
-		][  cause-error 'access 'no-port-action []]
+		]
 	]
 
 
@@ -4493,8 +4452,7 @@ odbc: context [
 		"Close connection or statement."
 		port            [port!]         "statement or cursor"
 	][
-		unless open? port [cause-error 'access 'not-open [port]]
-		switch port/state/type [
+		dispatch 'close port [
 			connection [
 				if debug-odbc? [print "actor/close: connection"]
 
