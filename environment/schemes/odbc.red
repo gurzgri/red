@@ -3955,6 +3955,8 @@ odbc: context [
 		"Returns if connection is open."
 		port            [port!] "connection"
 	][
+		if debug-odbc? [print "actor/open?"]
+
 		to logic! port/state
 	]
 
@@ -4136,6 +4138,8 @@ odbc: context [
 		/local
 			access
 	][
+		if debug-odbc? [print ["actor/change" mold sql]]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch port/state/type [
 			connection [
@@ -4175,6 +4179,8 @@ odbc: context [
 		"Returns connection and statement state."
 		port            [port!]         "connection or statement"
 	][
+		if debug-odbc? [print "actor/query"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4195,6 +4201,8 @@ odbc: context [
 		"Returns number of rows of the current result set or length of rowset with cursor."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/length?"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4214,6 +4222,8 @@ odbc: context [
 		"Returns number of current rows of the current result set or cursor position."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/index?"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [;any [
@@ -4234,6 +4244,8 @@ odbc: context [
 		"Updates statement with next result set and returns its column names or row count."
 		port            [port!]
 	][
+		if debug-odbc? [print "actor/update"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [all [
@@ -4251,6 +4263,8 @@ odbc: context [
 		"Copy rowset from executed SQL statement."
 		port            [port!]
 	][
+		if debug-odbc? [print "actor/copy"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4269,6 +4283,8 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		column          [word! string! integer!]
 	][
+		if debug-odbc? [print ["actor/pick " column]]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4293,6 +4309,8 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		rows            [integer!]
 	][
+		if debug-odbc? [print ["actor/skip" rows]]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4319,6 +4337,8 @@ odbc: context [
 		port            [port!]         "statement or cursor"
 		row             [integer!]
 	][
+		if debug-odbc? [print ["actor/at" row]]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4341,6 +4361,8 @@ odbc: context [
 		"Retrieve first rowset from executed SQL statement or position cursor."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/head"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4361,6 +4383,8 @@ odbc: context [
 		"Returns true if current rowset includes first row in rowset."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/head?"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement
@@ -4379,6 +4403,8 @@ odbc: context [
 		"Retrieve previous rowset from executed SQL statement or move cursor back a row."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/back"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4401,6 +4427,8 @@ odbc: context [
 		"Retrieve next rowset from executed SQL statement."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/next"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4423,6 +4451,8 @@ odbc: context [
 		"Retrieve last rowset from executed SQL statement."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/tail"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [
@@ -4443,6 +4473,8 @@ odbc: context [
 		"Returns true if current rowset includes last row in rowset."
 		port            [port!]         "statement or cursor"
 	][
+		if debug-odbc? [print "actor/tail?"]
+
 		unless open? port [cause-error 'access 'not-open [port]]
 		switch/default port/state/type [
 			statement [all [
