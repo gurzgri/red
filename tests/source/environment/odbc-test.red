@@ -41,7 +41,7 @@ Red [
 	--test-- "can connect by ODBC datasource name"
 		--assert not error? try [
 			url: rejoin [odbc:// get-env "TESTDSN"]     ;-- required to be set for
-			close open open url                         ;   the test to succeed
+			close open url                              ;   the test to succeed
 		]
 
 	--test-- "can connect by ODBC connection string"
@@ -585,7 +585,7 @@ Red [
 
 ===start-group=== "catalog tests"
 
-	--test-- "can catalog column privileges"    --assert not error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [column privileges "lmf" "depot2019" "schools" "school_id"] close conn]
+	--test-- "can catalog column privileges"    --assert not error? try [also try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [column privileges "lmf" "depot2019" "schools" "school_id"]] close conn]
 	--test-- "can catalog columns"              --assert not error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] 'columns close conn]
 	--test-- "can catalog foreign keys"         --assert not error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [foreign keys "lmf" "depot2019" "schools"] close conn]
 	--test-- "can catalog primary keys"         --assert not error? try [insert test: open conn: open rejoin [odbc:// get-env "TESTDSN"] [primary keys "lmf" "depot2019" "schools"] close conn]

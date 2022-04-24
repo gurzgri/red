@@ -2661,6 +2661,8 @@ odbc: context [
 
 		environment/count: environment/count + 1
 
+		if debug-odbc? [print ["^-init-odbc:" environment/count]]
+
 		exit
 	]
 
@@ -2677,6 +2679,10 @@ odbc: context [
 			zero? environment/count: environment/count - 1
 			close-environment environment
 		]
+
+		if debug-odbc? [print ["^-free-odbc:" environment/count]]
+
+		exit
 	]
 
 
