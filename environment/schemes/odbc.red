@@ -90,7 +90,7 @@ odbc: context [
 		sql:            none
 		params:         []
 		prms-status:    none
-		window:         10                              ;-- default window size
+		window:         1024                            ;-- default window size
 		columns:        []
 		rows-status:    none
 		rows-fetched:   none
