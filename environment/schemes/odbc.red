@@ -2696,8 +2696,10 @@ odbc: context [
 	][
 		if debug-odbc? [print "free-odbc"]
 
-		all [
-			zero? environment/count: environment/count - 1
+		unless zero? environment/count [
+			environment/count: environment/count - 1
+		]
+		if zero? environment/count [
 			close-environment environment
 		]
 
