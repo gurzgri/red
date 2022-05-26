@@ -2773,7 +2773,9 @@ odbc: context [
 	return-columns: function [statement rows] [
 		if debug-odbc? [print "return-columns"]
 
-		statement/position: pick-attribute statement 14 ;-- sql/attr-row-number
+		statement/position: either statement/access = 'forward [0] [            ;-- or 24000 invalid cursor state if cursor not open
+			pick-attribute statement 14                 ;-- sql/attr-row-number
+		]
 
 		all [
 			statement/cursor
