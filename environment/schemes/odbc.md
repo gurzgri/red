@@ -727,10 +727,7 @@ of `row`, but can also be `transaction` or `session`
 of `false`, with `true` special columns are returned even if they can have
 null values.
 
-Note that `insert` with catalog functions doesn't reduce the block, but will
-rather silently `compose` it to allow for easier dialecting. So you can use
-the keywords as-is and arguments in parens. However, the literal words `none`
-and `on`, `off`, `true`, `false`, `yes`, `no` will be recognized and converted
+Literal words `none` and `on`, `off`, `true`, `false`, `yes`, `no` will be recognized and converted
 to their usual value of type `none!` or `logic!`.
 
 ###### Pattern Matching vs. Strict Mode, Case-(In)Sensitivity
