@@ -673,8 +673,9 @@ tables:  copy   statement
 
 will, for example, return a list of all tables in a data source.
 
-To narrow down results supply a block (which *won't* be `reduce`d but will be
-`compose`d):
+To narrow down results supply a block (which in case of
+catalog functions *won't* be `reduce`, so you'll need to `reduce`,
+`compose` or otherwise build the block by yourself):
 
 ```Red
 columns: insert statement [tables "customs" "tariffs"]
@@ -689,16 +690,16 @@ The signature of the catalog functions is as follows:
 
 | word          | block |
 |---------------|---|
-|               | `[column privileges (cat) (schema) (tbl) (col)]` |
-| `'columns`    | `[columns (cat) (schema) (tbl) (col)]` |
-|               | `[foreign keys (cat/pk) (schema/pk) (tbl/pk) (cat/fk) (schema/fk) (tbl/fk)]` |
-|               | `[special columns [unique \| update \| none!] (cat) (schema) (tbl) [row \| transaction \| session \| none!] [logic! \| none!]]` |
-|               | `[primary keys (cat) (schema) (tbl)]` |
-|               | `[procedure columns (cat) (schema) (tbl) (col)]` |
-| `'procedures` | `[procedures catalog (schema) (proc)]` |
-| `'statistics` | `[statistics (cat) (schema) (tbl) [all \| unique \| none!]]` |
-|               | `[table privileges (cat) (schema) (tbl)]` |
-| `'tables`     | `[tables (cat) (schema) (tbl) (type)]` |
+|               | `[column privileges <cat> <schema> <tbl> <col>]` |
+| `'columns`    | `[columns <cat> <schema> <tbl> <col>]` |
+|               | `[foreign keys <cat/pk> <schema/pk> <tbl/pk> <cat/fk> <schema/fk> <tbl/fk>]` |
+|               | `[special columns [unique \| update \| none!] <cat> <schema> <tbl> [row \| transaction \| session \| none!] [logic! \| none!]]` |
+|               | `[primary keys <cat> <schema> <tbl>]` |
+|               | `[procedure columns <cat> <schema> <tbl> <col>]` |
+| `'procedures` | `[procedures catalog <schema> <proc>]` |
+| `'statistics` | `[statistics <cat> <schema> <tbl> [all \| unique \| none!]]` |
+|               | `[table privileges <cat> <schema> <tbl>]` |
+| `'tables`     | `[tables <cat> <schema> <tbl> <type>]` |
 | `'types`      | `[types]` |
 
 with
