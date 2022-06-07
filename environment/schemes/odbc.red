@@ -176,7 +176,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR   [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -286,7 +286,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -410,7 +410,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -453,7 +453,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -489,7 +489,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -722,7 +722,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -759,7 +759,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -840,7 +840,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -877,7 +877,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -926,7 +926,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -965,7 +965,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1003,7 +1003,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement]
 		]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! values + odbc/common-field-errors
 		]]
 
@@ -1046,7 +1046,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1381,7 +1381,7 @@ odbc: context [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if ODBC_ERROR [fire [
-				TO_ERROR(script bad-bad) odbc/odbc
+				TO_ERROR(script bad-bad) word/load "ODBC"
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
@@ -1414,7 +1414,7 @@ odbc: context [
 			v1 v2 v3
 			v4 v5 v6 v7 [red-value!]
 			value       [red-value!]
-			word        [red-word!]
+			wrd         [red-word!]
 
 	][
 		#if debug? = yes [print ["CATALOG-STATEMENT [" lf]]
@@ -1429,13 +1429,13 @@ odbc: context [
 									sql/is-integer
 		]
 
-		word: as red-word! block/rs-abs-at dialect 0
-		sym:  symbol/resolve word/symbol
+		wrd: as red-word! block/rs-abs-at dialect 0
+		sym: symbol/resolve wrd/symbol
 
 		value: block/rs-abs-at dialect 1
 		if TYPE_OF(value) = TYPE_WORD [
-			word: as red-word! value
-			bol:  symbol/resolve word/symbol
+			wrd: as red-word! value
+			bol: symbol/resolve wrd/symbol
 		]
 
 		v1: block/rs-abs-at dialect 1
@@ -1508,8 +1508,8 @@ odbc: context [
 				sctype: sql/best-rowid                  ;-- default
 
 				if TYPE_OF(v2) = TYPE_WORD [
-					word: as red-word! v2
-					sym:  symbol/resolve word/symbol
+					wrd: as red-word! v2
+					sym: symbol/resolve wrd/symbol
 
 					sctype: case [
 						sym = odbc/_unique      [sql/best-rowid]
@@ -1519,8 +1519,8 @@ odbc: context [
 				scope: sql/scope-currow                 ;-- default
 
 				if TYPE_OF(v6) = TYPE_WORD [
-					word: as red-word! v6
-					sym:  symbol/resolve word/symbol
+					wrd: as red-word! v6
+					sym: symbol/resolve wrd/symbol
 
 					scope: case [
 						sym = odbc/_row         [sql/scope-currow]
@@ -1546,8 +1546,8 @@ odbc: context [
 				reserved: 0
 
 				if TYPE_OF(v4) = TYPE_WORD [
-					word: as red-word! v4
-					sym:  symbol/resolve word/symbol
+					wrd:  as red-word! v4
+					sym:  symbol/resolve wrd/symbol
 					uniq: case [
 						sym = odbc/_all         [sql/index-all]
 						sym = odbc/_unique      [sql/index-unique]
@@ -1593,7 +1593,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1621,7 +1621,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1652,7 +1652,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1687,7 +1687,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1738,7 +1738,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless any [ODBC_NO_DATA ODBC_SUCCESS ODBC_INFO] [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1770,7 +1770,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/odbc
+			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1923,7 +1923,7 @@ odbc: context [
 			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) odbc/odbc
+				TO_ERROR(script bad-bad) word/load "ODBC"
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
@@ -2080,7 +2080,7 @@ odbc: context [
 				ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 				unless ODBC_SUCCEEDED [fire [
-					TO_ERROR(script bad-bad) odbc/odbc
+					TO_ERROR(script bad-bad) word/load "ODBC"
 					as red-block! (object/get-values statement) + odbc/common-field-errors
 				]]
 
@@ -2200,7 +2200,7 @@ odbc: context [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-				TO_ERROR(script bad-bad) odbc/odbc
+				TO_ERROR(script bad-bad) word/load "ODBC"
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
@@ -2466,7 +2466,7 @@ odbc: context [
 			unless any [ODBC_SUCCESS ODBC_INFO ODBC_NO_DATA] [
 				free buffer
 				fire [
-					TO_ERROR(script bad-bad) odbc/odbc
+					TO_ERROR(script bad-bad) word/load "ODBC"
 					as red-block! (object/get-values statement) + odbc/common-field-errors
 				]
 			]
@@ -2539,7 +2539,7 @@ odbc: context [
 			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) odbc/odbc
+				TO_ERROR(script bad-bad) word/load "ODBC"
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 		]

@@ -2787,8 +2787,6 @@ odbc: context [
 	_update:        symbol/resolve symbol/make "update"
 	_user:          symbol/resolve symbol/make "user"
 
-	odbc:           word/load "ODBC"
-
 
 	;---------------------------------- print-wstring --
 	;   debugging only
