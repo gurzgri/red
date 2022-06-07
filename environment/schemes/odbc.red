@@ -763,8 +763,7 @@ odbc: context [
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
-		copy-cell as red-value! handle/box
-				  sqlhstmt
+		copy-cell as red-value! handle/box sqlhstmt
 				  (object/get-values statement) + odbc/common-field-handle
 
 		fetched: allocate size? integer!
@@ -4084,7 +4083,12 @@ odbc: context [
 					catalog-statement port/state catalog strict?
 					describe-result port/state
 				]
-				parse query [[string! | set word word! if (string? get/any :word)] to end] [
+				parse query [
+					[   string!
+					|   set word word! if (string? get/any :word)
+					]
+					to end
+				][
 					do freeing
 
 					if part [port/state/window: length]                         ;-- insert/part shorthand
