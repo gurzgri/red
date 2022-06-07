@@ -541,7 +541,6 @@ _series: context [
 			int		[red-integer!]
 			ser2	[red-series!]
 			hash	[red-hash!]
-			table	[node!]
 			values? [logic!]
 			neg?	[logic!]
 			part?	[logic!]
@@ -636,20 +635,6 @@ _series: context [
 				if added > 0 [s/tail: as cell! tail + added]
 			]
 			copy-memory src as byte-ptr! cell items << unit
-
-			if type = TYPE_HASH [
-				n: items * cnt
-				added: either part? [n - part][n - size]
-				hash: as red-hash! ser
-				table: hash/table
-				either part? [
-					_hashtable/refresh table added head + part size yes
-					n: either added < 0 [part + added][part]
-				][
-					if n > size [n: size]
-				]
-				_hashtable/clear table head n
-			]
 		][
 			tail: as byte-ptr! s/tail
 			src: (as byte-ptr! s/offset) + (head << unit)
@@ -705,11 +690,9 @@ _series: context [
 			]
 		]
 		if type = TYPE_HASH [
-			cell: s/offset + head
-			loop items [
-				_hashtable/put table cell
-				cell: cell + 1
-			]
+			n: get-length ser yes
+			hash: as red-hash! ser
+			_hashtable/rehash hash/table n
 		]
 		ser/head: head + items
 		ownership/check as red-value! ser words/_changed null head items
@@ -873,6 +856,7 @@ _series: context [
 			s/tail: as red-value! tail - part
 		][
 			s/tail: as red-value! head
+			part: as-integer tail - head	;-- sanitize part
 		]
 		if TYPE_OF(ser) = TYPE_HASH [
 			items: as-integer tail - (head + part)

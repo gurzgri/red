@@ -413,6 +413,7 @@ face!: object [				;-- keep in sync with facet! enum
 				tab "new  :" type? :new
 			]
 		]
+
 		if all [word <> 'state word <> 'extra][
 			all [
 				not empty? srs: system/reactivity/source
@@ -459,7 +460,7 @@ face!: object [				;-- keep in sync with facet! enum
 			if find [field text] type [
 				if word = 'text [
 					set-quiet 'data any [
-						all [not empty? new type: scan new find scalar! type attempt/safer [load new]]
+						all [not empty? new new-type: scan new find scalar! new-type attempt/safer [load new]]
 						all [options options/default]
 					]
 				]
