@@ -1581,13 +1581,13 @@ odbc: context [
 			]
 		]
 
+		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+
 		if strict [
 			set-statement statement sql/attr-metadata-id
 									sql/false
 									sql/is-integer
 		]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) statement
