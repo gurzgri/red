@@ -161,7 +161,7 @@ odbc: context [
 		]]
 
 		copy-cell as red-value! handle/box sqlhenv
-				(object/get-values environment) + odbc/common-field-handle
+				  (object/get-values environment) + odbc/common-field-handle
 
 		ODBC_RESULT sql/SQLSetEnvAttr sqlhenv
 									  sql/attr-odbc-version
@@ -458,7 +458,7 @@ odbc: context [
 		]]
 
 		copy-cell as red-value! handle/box sqlhdbc
-				(object/get-values connection) + odbc/common-field-handle
+				  (object/get-values connection) + odbc/common-field-handle
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
 			set-connection connection sql/attr-login-timeout
@@ -771,7 +771,7 @@ odbc: context [
 		#if debug? = yes [print ["^-allocate fetched, " size? integer! " bytes @ " fetched lf]]
 
 		copy-cell as red-value! handle/box as integer! fetched
-				(object/get-values statement) + odbc/stmt-field-rows-fetched
+				  (object/get-values statement) + odbc/stmt-field-rows-fetched
 
 		#if debug? = yes [print ["]" lf]]
 	]
@@ -1004,13 +1004,14 @@ odbc: context [
 		]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
 			TO_ERROR(script bad-bad) odbc/odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			as red-block! values + odbc/common-field-errors
 		]]
 
 		cursor:	as red-object! values + odbc/stmt-field-cursor
 		values: object/get-values cursor
 
-		copy-cell as red-value! integer/box index values + odbc/crsr-field-position
+		copy-cell as red-value! integer/box index
+				  values + odbc/crsr-field-position
 
 		#if debug? = yes [print ["]" lf]]
 	]
@@ -1142,7 +1143,8 @@ odbc: context [
 
 		#if debug? = yes [print ["^-allocate status/value, " rows * size? integer! " bytes @ " as byte-ptr! status/value lf]]
 
-		copy-cell as red-value! status values + odbc/stmt-field-prms-status     ;-- store pointer in statement
+		copy-cell as red-value! status                  ;-- store pointer in statement
+				  values + odbc/stmt-field-prms-status  ;
 
 		set-statement statement sql/attr-paramset-size    rows         0
 		set-statement statement sql/attr-param-status-ptr status/value 0
@@ -1878,7 +1880,8 @@ odbc: context [
 
 		#if debug? = yes [print ["^-allocate status/value, " window * size? integer! " bytes @ " as byte-ptr! status/value lf]]
 
-		copy-cell as red-value! status values + odbc/stmt-field-rows-status     ;-- store pointer in statement
+		copy-cell as red-value! status                  ;-- store pointer in statement
+				  values + odbc/stmt-field-rows-status  ;
 
 		;-- setting statement attributes --
 		;
