@@ -1830,6 +1830,7 @@ odbc: context [
 			bookmarks   [logic!]
 			buffer      [byte-ptr!]
 			buflen      [integer!]
+			bufsize     [integer!]
 			c-type      [integer!]
 			col         [integer!]
 			col-size    [integer!]
@@ -2040,7 +2041,13 @@ odbc: context [
 				]
 			]
 
-			buffer: allocate window * buflen
+			bufsize: window * buflen
+
+			if system/cpu/overflow? [fire [
+				TO_ERROR(internal limit-hit) word/load "ODBC"
+			]]
+
+			buffer: allocate bufsize
 
 			#if debug? = yes [print ["^-allocate buffer, " window * buflen " bytes @ " buffer "..." buffer + (window * buflen) - 1 lf]]
 
