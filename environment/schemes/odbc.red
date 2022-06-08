@@ -2772,7 +2772,7 @@ odbc: context [
 	;   Returns DECIMAL or NUMERIC if the a LOAD-able
 	;   or string otherwise.
 
-	return-columns: function [statement rows] [
+	return-columns: function [statement rows /local row] [
 		if debug-odbc? [print "return-columns"]
 
 		statement/position: either statement/access = 'forward [0] [            ;-- or 24000 invalid cursor state if cursor not open
@@ -4024,6 +4024,7 @@ odbc: context [
 			length      [integer!]
 		/local
 			word
+			prmset
 	][
 		freeing: [
 			free-parameters port/state                  ;-- all this freeing is architecturally required for
@@ -4154,6 +4155,7 @@ odbc: context [
 		sql             [block! object! string!] "state spec block or object, cursor name"
 		/local
 			access
+			word
 	][
 		dispatch 'change port [
 			connection [
