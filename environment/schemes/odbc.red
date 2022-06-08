@@ -3776,7 +3776,7 @@ odbc: context [
 				|   'any set values [word! | block!] keep (
 						if word? values [values: get values]
 						collect [foreach [value name] values [
-							unless zero? info and value [keep name]
+							all [info not zero? info and value keep name]
 						]]
 					)
 				|   'opt set values [block! | block!] keep (
