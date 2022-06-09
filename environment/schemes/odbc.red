@@ -1637,17 +1637,16 @@ odbc: context [
 		/local
 			hstmt       [red-handle!]
 			rc          [integer!]
-			rows        [red-integer!]
+			rows        [integer!]
 	][
 		#if debug? = yes [print ["AFFECTED-ROWS [" lf]]
 
 		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
-		rows:  integer/box 0
+		rows:  0
 
-		ODBC_RESULT sql/SQLRowCount hstmt/value
-								   :rows/value
+		ODBC_RESULT sql/SQLRowCount hstmt/value :rows
 
-		#if debug? = yes [print ["^-SQLRowCount " rows/value ": " rc lf]]
+		#if debug? = yes [print ["^-SQLRowCount " rc ": " rows lf]]
 
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
@@ -1658,7 +1657,7 @@ odbc: context [
 
 		#if debug? = yes [print ["]" lf]]
 
-		SET_RETURN(rows)
+		SET_RETURN((integer/box rows))
 	]
 
 
@@ -1765,7 +1764,7 @@ odbc: context [
 
 		ODBC_RESULT sql/SQLNumResultCols hstmt/value :cols
 
-		#if debug? = yes [print ["^-SQLNumResultCols " rc lf]]
+		#if debug? = yes [print ["^-SQLNumResultCols " rc ": " cols lf]]
 
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
@@ -1774,9 +1773,9 @@ odbc: context [
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
-		SET_RETURN((integer/box cols))
-
 		#if debug? = yes [print ["]" lf]]
+
+		SET_RETURN((integer/box cols))
 	]
 
 
