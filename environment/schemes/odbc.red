@@ -4205,10 +4205,10 @@ odbc: context [
 			statement [
 				about-entity port/state
 			]
-			connection [make map! compose [             ;-- NOTE: possible because no duplicate keys
+			connection [make map! sort/skip compose [        ;-- NOTE: possible because no duplicate keys
 				(to block! about-entity/infos port/state)
 				(to block! about-entity       port/state)
-			]]
+			] 2]
 		]
 	]
 
