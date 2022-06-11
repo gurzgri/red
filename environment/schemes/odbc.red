@@ -1620,7 +1620,7 @@ odbc: context [
 
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
-		unless ODBC_SUCCEEDED [fire [
+		unless any [ODBC_SUCCEEDED ODBC_NO_DATA] [fire [
 			TO_ERROR(script bad-bad) word/load "ODBC"
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
