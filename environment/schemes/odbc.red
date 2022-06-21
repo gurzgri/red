@@ -1232,7 +1232,7 @@ odbc: context [
 						break
 					]
 					true [
-						maxlen: 1
+						if zero? maxlen [maxlen: 1]
 					]
 				]
 
