@@ -11,12 +11,15 @@ Red/System [
 
 	Windows [
 		#define ODBC_LIBRARY "odbc32.dll"
+		#define KERNEL_LIBRARY "kernel32.dll"
 	]
 	macOS [
 		#define ODBC_LIBRARY "odbc.dylib"
+		;define KERNEL_LIBRARY
 	]
 	#default [
 		#define ODBC_LIBRARY "libodbc.so.2"
+		;define KERNEL_LIBRARY
 	]
 
 ]
@@ -2253,6 +2256,41 @@ sql: context [
 	] ;-- enum
 
 
+	;######################################### kernel ##
+	;
+	; ██   ██ ███████  █████  ██████   █████  ██████  ██
+	; ██   ██ ██      ██   ██ ██   ██ ██   ██ ██   ██ ██
+	; ███████ █████   ███████ ██████  ███████ ██████  ██
+	; ██   ██ ██      ██   ██ ██      ██   ██ ██      ██
+	; ██   ██ ███████ ██   ██ ██      ██   ██ ██      ██
+	;
+
+	;--------------------------------- KERNEL_LIBRARY --
+	;
+
+	#import [KERNEL_LIBRARY stdcall [
+
+		GetProcessHeap: "GetProcessHeap" [
+			return:                 [integer!]
+		]
+
+		HeapAlloc: "HeapAlloc" [
+			heap                    [integer!]
+			flags                   [integer!]
+			bytes                   [integer!]
+			return:                 [byte-ptr!]
+		]
+
+		HeapFree: "HeapFree" [
+			heap                    [integer!]
+			flags                   [integer!]
+			mem                     [byte-ptr!]
+			return:                 [integer!]
+		]
+
+	]] ;#import
+
+
 	;##########################000000####### sqlfuncs ##
 	;
 	;  ██████  ██████  ██      ███████ ██    ██ ███    ██  ██████  ██████
@@ -2700,6 +2738,15 @@ sql: context [
 
 odbc: context [
 
+	;------------------------------------------- heap --
+	;
+
+	heap: sql/GetProcessHeap
+	if zero? heap [fire [
+		TO_ERROR(internal no-memory)
+	]]
+
+
 	;--------------------------- state objects layout --
 	;
 
@@ -2751,6 +2798,7 @@ odbc: context [
 		crsr-field-position
 	]
 
+
 	;---------------------------------------- symbols --
 	;
 
@@ -2786,6 +2834,8 @@ odbc: context [
 	_unique:        symbol/resolve symbol/make "unique"
 	_update:        symbol/resolve symbol/make "update"
 	_user:          symbol/resolve symbol/make "user"
+
+	__odbc:			word/load "ODBC"
 
 
 	;---------------------------------- print-wstring --
@@ -2895,7 +2945,8 @@ odbc: context [
 		errors:         as red-block! values + common-field-errors
 		block/rs-clear errors
 
-		state:          allocate 5 + 1 << 1
+	;   state:          allocate             5 + 1 << 1
+		state:          sql/HeapAlloc heap 0 5 + 1 << 1
 
 		#if debug? = yes [print ["^-allocate state, " 5 + 1 << 1 " bytes @ " state lf]]
 
@@ -2910,7 +2961,8 @@ odbc: context [
 
 			loop 2 [
 				if message = null [
-					message: allocate buffer-len + 1 << 1
+				;   message: allocate             buffer-len + 1 << 1
+					message: sql/HeapAlloc heap 0 buffer-len + 1 << 1
 
 					#if debug? = yes [print ["^-allocate message, " buffer-len + 1 << 1 " bytes @ " message lf]]
 				]
@@ -2934,7 +2986,8 @@ odbc: context [
 				][
 					#if debug? = yes [print ["^-free message @ " message lf]]
 
-					free message                        ;-- try again with bigger buffer
+				;	free                message         ;-- try again with bigger buffer
+					sql/HeapFree heap 0 message         ;-- try again with bigger buffer
 					message: null
 					buffer-len: message-len
 				]
@@ -2961,8 +3014,10 @@ odbc: context [
 		#if debug? = yes [print ["^-free state @ "   state   lf]]
 		#if debug? = yes [print ["^-free message @ " message lf]]
 
-		free state
-		free message
+	;	free                state
+		sql/HeapFree heap 0 state
+	;	free                message
+		sql/HeapFree heap 0 message
 
 		#if debug? = yes [print ["]" lf]]
 	]

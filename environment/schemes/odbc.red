@@ -153,11 +153,8 @@ odbc: context [
 
 		#if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
 
-		if ODBC_INVALID [fire [
-			TO_ERROR(script invalid-arg) environment
-		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(internal no-memory) environment
+			TO_ERROR(internal no-memory)
 		]]
 
 		copy-cell as red-value! handle/box sqlhenv
@@ -176,7 +173,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR   [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -219,12 +216,14 @@ odbc: context [
 
 		until [
 			if desc-buf = null [
-				desc-buf: allocate desc-len + 1 << 1
+			;	desc-buf: allocate                  desc-len + 1 << 1
+				desc-buf: sql/HeapAlloc odbc/heap 0 desc-len + 1 << 1
 
 				#if debug? = yes [print ["^-allocate desc-buf, " desc-len + 1 << 1 " bytes @ " desc-buf lf]]
 			]
 			if attr-buf = null [
-				attr-buf: allocate attr-len + 1 << 1
+			;	attr-buf: allocate                  attr-len + 1 << 1
+				attr-buf: sql/HeapAlloc odbc/heap 0 attr-len + 1 << 1
 
 				#if debug? = yes [print ["^-allocate attr-buf, " attr-len + 1 << 1 " bytes @ " attr-buf lf]]
 			]
@@ -246,13 +245,15 @@ odbc: context [
 			]] [
 				#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
 
-				free desc-buf
+			;	free                     desc-buf
+				sql/HeapFree odbc/heap 0 desc-buf
 				desc-buf: null
 				desc-len: desc-out
 
 				#if debug? = yes [print ["^-free attr-buf @ " attr-buf lf]]
 
-				free attr-buf
+			;	free                     attr-buf
+				sql/HeapFree odbc/heap 0 attr-buf
 				attr-buf: null
 				attr-len: attr-out
 
@@ -276,17 +277,19 @@ odbc: context [
 
 		#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
 
-		free desc-buf
+	;	free                     desc-buf
+		sql/HeapFree odbc/heap 0 desc-buf
 
 		#if debug? = yes [print ["^-free attr-buf @ " attr-buf lf]]
 
-		free attr-buf
+	;	free                     attr-buf
+		sql/HeapFree odbc/heap 0 attr-buf
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -343,12 +346,14 @@ odbc: context [
 
 		until [
 			if srvr-buf = null [
-				srvr-buf: allocate srvr-len + 1 << 1
+			;	srvr-buf: allocate                  srvr-len + 1 << 1
+				srvr-buf: sql/HeapAlloc odbc/heap 0 srvr-len + 1 << 1
 
 				#if debug? = yes [print ["^-allocate srvr-buf, " srvr-len + 1 << 1 " bytes @ " srvr-buf lf]]
 			]
 			if desc-buf = null [
-				desc-buf: allocate desc-len + 1 << 1
+			;	desc-buf: allocate                  desc-len + 1 << 1
+				desc-buf: sql/HeapAlloc odbc/heap 0 desc-len + 1 << 1
 
 				#if debug? = yes [print ["^-allocate desc-buf, " desc-len + 1 << 1 " bytes @ " desc-buf lf]]
 			]
@@ -370,13 +375,15 @@ odbc: context [
 			]] [
 				#if debug? = yes [print ["^-free srvr-buf @ " srvr-buf lf]]
 
-				free srvr-buf
+			;	free                     srvr-buf
+				sql/HeapFree odbc/heap 0 srvr-buf
 				srvr-buf: null
 				srvr-len: srvr-out
 
 				#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
 
-				free desc-buf
+			;	free                     desc-buf
+				sql/HeapFree odbc/heap 0 desc-buf
 				desc-buf: null
 				desc-len: desc-out
 
@@ -400,17 +407,19 @@ odbc: context [
 
 		#if debug? = yes [print ["^-free srvr-buf @ " srvr-buf lf]]
 
-		free srvr-buf
+	;	free                     srvr-buf
+		sql/HeapFree odbc/heap 0 srvr-buf
 
 		#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
 
-		free desc-buf
+	;	free                     desc-buf
+		sql/HeapFree odbc/heap 0 desc-buf
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
@@ -453,12 +462,14 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values environment) + odbc/common-field-errors
 		]]
 
 		copy-cell as red-value! handle/box sqlhdbc
 				  (object/get-values connection) + odbc/common-field-handle
+
+		#if debug? = yes [print ["^-hdbc/value = " sqlhdbc lf]]
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
 			set-connection connection sql/attr-login-timeout
@@ -489,7 +500,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -553,7 +564,8 @@ odbc: context [
 		sym:    symbol/resolve type/symbol
 
 		loop 2 [
-			buffer: allocate buflen + 1
+		;	buffer: allocate                  buflen + 1
+			buffer: sql/HeapAlloc odbc/heap 0 buflen + 1
 
 			case [
 				sym = odbc/_environment [
@@ -576,7 +588,8 @@ odbc: context [
 			][
 				break                                   ;-- buffer was large enough
 			][
-				free buffer                             ;-- try again with bigger buffer
+			;	free                     buffer         ;-- try again with bigger buffer
+				sql/HeapFree odbc/heap 0 buffer         ;-- try again with bigger buffer
 				buflen: outlen
 			]
 		]
@@ -594,7 +607,8 @@ odbc: context [
 		]]
 		if ODBC_ERROR [
 			SET_RETURN(none-value)
-			free buffer
+		;	free                     buffer
+			sql/HeapFree odbc/heap 0 buffer
 			exit
 		]
 
@@ -649,7 +663,8 @@ odbc: context [
 		][
 			#if debug? = yes [odbc/print-buffer buffer outlen]
 			SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
-			free buffer
+		;	free                     buffer
+			sql/HeapFree odbc/heap 0 buffer
 			exit
 		]
 
@@ -684,15 +699,21 @@ odbc: context [
 				info = sql/attr-rows-fetched-ptr
 			]]
 		]][
-			SET_RETURN((either zero? intptr/value [none-value] [handle/box intptr/value]))
-			free buffer
+			either zero? intptr/value [
+				SET_RETURN(none-value)
+			][
+				SET_RETURN((handle/box intptr/value))
+			]
+		;	free                     buffer
+			sql/HeapFree odbc/heap 0 buffer
 			exit
 		]
 
 		;-- integers
 		;
 		SET_RETURN((integer/box intptr/value))
-		free buffer
+	;	free                     buffer
+		sql/HeapFree odbc/heap 0 buffer
 	]
 
 
@@ -722,7 +743,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -759,14 +780,17 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
+
+		#if debug? = yes [print ["^-hstmt/value = " sqlhstmt lf]]
 
 		copy-cell as red-value! handle/box sqlhstmt
 				  (object/get-values statement) + odbc/common-field-handle
 
-		fetched: allocate size? integer!
+	;	fetched: allocate                  size? integer!
+		fetched: sql/HeapAlloc odbc/heap 0 size? integer!
 
 		#if debug? = yes [print ["^-allocate fetched, " size? integer! " bytes @ " fetched lf]]
 
@@ -800,7 +824,8 @@ odbc: context [
 		cstr:       unicode/to-utf16 sqlstr             ;-- null terminated utf16
 
 		loop 2 [
-			buffer: allocate buflen + 1 << 1
+		;	buffer: allocate                  buflen + 1 << 1
+			buffer: sql/HeapAlloc odbc/heap 0 buflen + 1 << 1
 
 			#if debug? = yes [print ["^-allocate buffer, " buflen + 1 << 1 " bytes @ " buffer lf]]
 
@@ -821,7 +846,8 @@ odbc: context [
 			][
 				#if debug? = yes [print ["^-free buffer @ " buffer lf]]
 
-				free buffer                             ;-- try again with bigger buffer
+			;	free                     buffer         ;-- try again with bigger buffer
+				sql/HeapFree odbc/heap 0 buffer         ;-- try again with bigger buffer
 				buflen: outlen
 			]
 		]
@@ -834,13 +860,14 @@ odbc: context [
 
 		#if debug? = yes [print ["^-free buffer @ " buffer lf]]
 
-		free buffer
+	;	free                     buffer
+		sql/HeapFree odbc/heap 0 buffer
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -877,7 +904,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -926,7 +953,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values connection) + odbc/common-field-errors
 		]]
 
@@ -965,7 +992,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1003,7 +1030,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement]
 		]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! values + odbc/common-field-errors
 		]]
 
@@ -1046,7 +1073,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1074,7 +1101,8 @@ odbc: context [
 		loop prms [
 			buffer: as red-handle! block/rs-abs-at params prm
 														;-- NOTE: buffers come in param'n'strlen buffer pairs here
-			free as byte-ptr! buffer/value
+		;	free                     as byte-ptr! buffer/value
+			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
 			prm: prm + 1
 		]
 
@@ -1139,7 +1167,8 @@ odbc: context [
 
 		#if debug? = yes [print ["^-" rows " rows of " prms " params" lf]]
 
-		status:    handle/box as integer! allocate rows * size? integer!
+	;	status:    handle/box as integer! allocate                  rows * size? integer!
+		status:    handle/box as integer! sql/HeapAlloc odbc/heap 0 rows * size? integer!
 
 		#if debug? = yes [print ["^-allocate status/value, " rows * size? integer! " bytes @ " as byte-ptr! status/value lf]]
 
@@ -1217,13 +1246,15 @@ odbc: context [
 			;
 
 			buflen:  rows * slotlen
-			buffer:  allocate buflen
+		;	buffer:  allocate                  buflen
+			buffer:  sql/HeapAlloc odbc/heap 0 buflen
 			bufslot: buffer
 			handle/make-in buffers as integer! buffer
 
 			#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer lf]]
 
-			lenbuf:  as int-ptr! allocate rows * size? integer!
+		;	lenbuf:  as int-ptr! allocate                  rows * size? integer!
+			lenbuf:  as int-ptr! sql/HeapAlloc odbc/heap 0 rows * size? integer!
 			lenslot: lenbuf
 			handle/make-in buffers as integer! lenbuf
 
@@ -1381,7 +1412,7 @@ odbc: context [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if ODBC_ERROR [fire [
-				TO_ERROR(script bad-bad) word/load "ODBC"
+				TO_ERROR(script bad-bad) odbc/__odbc
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
@@ -1593,7 +1624,7 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1621,7 +1652,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless any [ODBC_SUCCEEDED ODBC_NO_DATA] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1651,7 +1682,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1686,7 +1717,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1737,11 +1768,11 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless any [ODBC_NO_DATA ODBC_SUCCESS ODBC_INFO] [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
-		SET_RETURN((either ODBC_SUCCEEDED [true-value] [none-value]))
+		either ODBC_SUCCEEDED [SET_RETURN(true-value)] [SET_RETURN(none-value)]
 
 		#if debug? = yes [print ["]" lf]]
 	]
@@ -1769,7 +1800,7 @@ odbc: context [
 		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) word/load "ODBC"
+			TO_ERROR(script bad-bad) odbc/__odbc
 			as red-block! (object/get-values statement) + odbc/common-field-errors
 		]]
 
@@ -1804,8 +1835,10 @@ odbc: context [
 			buffer: as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
 			strlen: as red-handle! block/rs-abs-at columns offset + odbc/col-field-strlen-ind
 
-			free as byte-ptr! buffer/value
-			free as byte-ptr! strlen/value
+		;	free                     as byte-ptr! buffer/value
+			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
+		;	free                     as byte-ptr! strlen/value
+			sql/HeapFree odbc/heap 0 as byte-ptr! strlen/value
 
 			buffer/value: 0
 			strlen/value: 0
@@ -1863,20 +1896,26 @@ odbc: context [
 
 		hstmt:    as red-handle! values + odbc/common-field-handle
 
+		#if debug? = yes [print ["^-hstmt/value = " hstmt/value lf]]
+
 		bookmarks:     logic/get values + odbc/stmt-field-bookmarks?
 		fetched:  as red-handle! values + odbc/stmt-field-rows-fetched          ;-- number of rows fetched
-		window:     integer/get (values + odbc/stmt-field-window)               ;-- window size (num of rows to recieve)
+		window:      integer/get values + odbc/stmt-field-window                ;-- window size (num of rows to recieve)
 		value:                   values + odbc/stmt-field-rows-status
+
+		#if debug? = yes [print ["^-window: " window lf]]
 
 		if TYPE_OF(value) = TYPE_HANDLE [
 			status: as red-handle! value
 
 			#if debug? = yes [print ["^-free status/value @ " as byte-ptr! status/value lf]]
 
-			free as byte-ptr! status/value
+		;	free                     as byte-ptr! status/value
+			sql/HeapFree odbc/heap 0 as byte-ptr! status/value
 		]
 
-		status: handle/box as integer! allocate window * size? integer!
+	;	status: handle/box as integer! allocate                  window * size? integer!
+		status: handle/box as integer! sql/HeapAlloc odbc/heap 0 window * size? integer!
 
 		#if debug? = yes [print ["^-allocate status/value, " window * size? integer! " bytes @ " as byte-ptr! status/value lf]]
 
@@ -1893,10 +1932,15 @@ odbc: context [
 		;-- describe & bind columns --
 		;
 
-		name-buflen: 256                                ;-- FIXME: why 256 ?!
-		name:        make-c-string name-buflen          ;
+		name-buflen: 256                                                        ;-- FIXME: why 256 ?!
+	;	name:        as c-string! allocate                  name-buflen         ;
+		name:        as c-string! sql/HeapAlloc odbc/heap 0 name-buflen         ;
 
-		#if debug? = yes [print ["^-allocate name, " name-buflen " bytes @ " as byte-ptr! name lf]]
+		if name = null [fire [
+			TO_ERROR(internal no-memory)
+		]]
+
+		#if debug? = yes [print ["^-allocate name, " name-buflen " bytes @ " as byte-ptr! name lf lf]]
 
 		columns:        block/push-only* cols * odbc/col-field-fields
 		col-size:       0
@@ -1907,6 +1951,8 @@ odbc: context [
 
 			;-- describe --
 			;
+
+			#if debug? = yes [print ["^-col = " col ", name = " as byte-ptr! name ", name-buflen = " name-buflen lf]]
 
 			ODBC_RESULT sql/SQLDescribeCol hstmt/value
 										   col
@@ -1923,11 +1969,11 @@ odbc: context [
 			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) word/load "ODBC"
+				TO_ERROR(script bad-bad) odbc/__odbc
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
-			#if debug? = yes [print ["^-col = " col ", sql-type = " sql-type ", col-size = " col-size lf]]
+			#if debug? = yes [print ["^-name-len = " name-len ", sql-type = " sql-type ", col-size = " col-size ", digits = " digits ", nullable = " nullable lf]]
 
 			case [
 				zero? col [
@@ -2017,7 +2063,8 @@ odbc: context [
 					sql-type = sql/interval-hour-to-second
 					sql-type = sql/interval-minute-to-second
 				][
-					sql/c-char
+					c-type: sql/c-char
+					buflen: col-size + 1
 				]
 				sql-type = sql/bigint [
 					c-type: sql/c-char
@@ -2040,19 +2087,33 @@ odbc: context [
 				]
 			]
 
+			#if debug? = yes [print ["^-c-type = " c-type ", buflen = " buflen]]
+
 			bufsize: window * buflen
 
 			if system/cpu/overflow? [fire [
-				TO_ERROR(internal limit-hit) word/load "ODBC"
+				TO_ERROR(internal limit-hit) odbc/__odbc
 			]]
 
-			buffer: allocate bufsize
+			#if debug? = yes [print [", bufsize = " bufsize lf]]
 
-			#if debug? = yes [print ["^-allocate buffer, " window * buflen " bytes @ " buffer "..." buffer + (window * buflen) - 1 lf]]
+		;	buffer: allocate                  bufsize
+			buffer: sql/HeapAlloc odbc/heap 0 bufsize
 
-			strlen: as int-ptr! allocate window * size? integer!
+			#if debug? = yes [print ["^-allocate buffer, " bufsize " bytes @ " buffer "..." buffer + bufsize - 1 lf]]
+
+			if buffer = null [fire [
+				TO_ERROR(internal no-memory)
+			]]
+
+		;	strlen: as int-ptr! allocate                  window * size? integer!
+			strlen: as int-ptr! sql/HeapAlloc odbc/heap 0 window * size? integer!
 
 			#if debug? = yes [print ["^-allocate strlen, " window * size? integer! " bytes @ " strlen lf]]
+
+			if strlen = null [fire [
+				TO_ERROR(internal no-memory)
+			]]
 
 			   none/make-in columns
 			either zero? col [
@@ -2081,24 +2142,25 @@ odbc: context [
 										buflen
 										strlen
 
-				#if debug? = yes [print ["^-SQLBindCol " rc lf]]
+				#if debug? = yes [print ["^-SQLBindCol " rc lf lf]]
 
 				ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 				unless ODBC_SUCCEEDED [fire [
-					TO_ERROR(script bad-bad) word/load "ODBC"
+					TO_ERROR(script bad-bad) odbc/__odbc
 					as red-block! (object/get-values statement) + odbc/common-field-errors
 				]]
-
-				#if debug? = yes [print ["^-c-type = " c-type lf]]
 			]
 
 			col: col + 1
 		]
 
-		#if debug? = yes [print ["^-free name @ " as byte-ptr! name lf]]
+		#if debug? = yes [print ["^-free name @ " as byte-ptr! name " ... "]]
 
-		free as byte-ptr! name
+	;	free                     as byte-ptr! name
+		sql/HeapFree odbc/heap 0 as byte-ptr! name
+		#if debug? = yes [print ["ok." lf]]
+
 		SET_RETURN(columns)
 
 		#if debug? = yes [print ["]" lf]]
@@ -2182,6 +2244,10 @@ odbc: context [
 		cols:     (block/rs-length? columns) / odbc/col-field-fields
 		sym:       symbol/resolve orientation/symbol
 
+		#if debug? = yes [print ["^-rowset:  "              rowset        lf]]
+		#if debug? = yes [print ["^-cols:    "              cols          lf]]
+		#if debug? = yes [print ["^-sym:     "              sym           lf]]
+
 		orient:    case [
 			sym = odbc/_all  [sql/fetch-next]
 			sym = odbc/_skip [sql/fetch-relative]
@@ -2191,6 +2257,9 @@ odbc: context [
 			sym = odbc/_next [sql/fetch-next]
 			sym = odbc/_tail [sql/fetch-last]
 		]
+
+		#if debug? = yes [print ["^-orient:  "              orient        lf]]
+		#if debug? = yes [print ["^-offset:  "              offset        lf]]
 
 		while [true] [
 			ODBC_RESULT sql/SQLFetchScroll hstmt/value orient offset
@@ -2206,7 +2275,7 @@ odbc: context [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-				TO_ERROR(script bad-bad) word/load "ODBC"
+				TO_ERROR(script bad-bad) odbc/__odbc
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 
@@ -2448,7 +2517,8 @@ odbc: context [
 		]
 
 		buflen: 4096
-		buffer: allocate buflen
+	;	buffer: allocate                  buflen
+		buffer: sql/HeapAlloc odbc/heap 0 buflen
 
 		#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer " for column " column lf]]
 
@@ -2470,9 +2540,10 @@ odbc: context [
 			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 			unless any [ODBC_SUCCESS ODBC_INFO ODBC_NO_DATA] [
-				free buffer
+			;	free                     buffer
+				sql/HeapFree odbc/heap 0 buffer
 				fire [
-					TO_ERROR(script bad-bad) word/load "ODBC"
+					TO_ERROR(script bad-bad) odbc/__odbc
 					as red-block! (object/get-values statement) + odbc/common-field-errors
 				]
 			]
@@ -2497,7 +2568,8 @@ odbc: context [
 			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
 		]
 
-		free buffer
+	;	free                     buffer
+		sql/HeapFree odbc/heap 0 buffer
 
 		either sql-type <> sql/longvarbinary [
 			redstr: as red-string! as red-value! redbin
@@ -2545,7 +2617,7 @@ odbc: context [
 			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) word/load "ODBC"
+				TO_ERROR(script bad-bad) odbc/__odbc
 				as red-block! (object/get-values statement) + odbc/common-field-errors
 			]]
 		]
@@ -4126,7 +4198,7 @@ odbc: context [
 						repeat pos length?* first params [
 							types: unique collect [foreach prmset params [
 								unless none? param: prmset/:pos [keep case [
-									date? param [either param/time ['datetime!] ['date!!]]
+									date? param [either param/time ['datetime!] ['date!]]
 									any-string? param ['any-string!]
 									/else [type?/word param]
 								]]
