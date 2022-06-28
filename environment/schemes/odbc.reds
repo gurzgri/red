@@ -25,6 +25,14 @@ Red/System [
 ]
 
 
+sql_heap_entry!: alias struct! [
+	data          [byte-ptr!]
+	size          [integer!]
+	overhead      [byte!]
+	index         [byte!]
+	flags         [integer!]
+]
+
 sql-date!: alias struct! [
 	year|month    [integer!]
 	daylo         [byte!]
@@ -2271,21 +2279,50 @@ sql: context [
 	#import [KERNEL_LIBRARY stdcall [
 
 		GetProcessHeap: "GetProcessHeap" [
-			return:                 [integer!]
+			return:                 [byte-ptr!]
 		]
 
 		HeapAlloc: "HeapAlloc" [
-			heap                    [integer!]
+			heap                    [byte-ptr!]
 			flags                   [integer!]
 			bytes                   [integer!]
 			return:                 [byte-ptr!]
 		]
 
+		HeapCreate: "HeapCreate" [
+			options                 [integer!]
+			initial                 [integer!]
+			maximum                 [integer!]
+			return:                 [byte-ptr!]
+		]
+
+		HeapDestroy: "HeapDestroy" [
+			heap                    [byte-ptr!]
+			return:                 [integer!]
+		]
+
 		HeapFree: "HeapFree" [
-			heap                    [integer!]
+			heap                    [byte-ptr!]
 			flags                   [integer!]
 			mem                     [byte-ptr!]
 			return:                 [integer!]
+		]
+
+		HeapValidate: "HeapValidate" [
+			heap                    [byte-ptr!]
+			flags                   [integer!]
+			mem                     [byte-ptr!]
+			return:                 [integer!]
+		]
+
+		HeapWalk: "HeapWalk" [
+			heap                    [byte-ptr!]
+			entry                   [byte-ptr!]
+			return:                 [integer!]
+		]
+
+		Sleep: "Sleep" [
+			millisecs               [integer!]
 		]
 
 	]] ;#import
@@ -2741,61 +2778,59 @@ odbc: context [
 	;------------------------------------------- heap --
 	;
 
-	heap: sql/GetProcessHeap
-	if zero? heap [fire [
-		TO_ERROR(internal no-memory)
-	]]
+	heap: declare byte-ptr!
+	heap: null
 
 
 	;--------------------------- state objects layout --
 	;
 
 	#enum odbc-field! [
-		common-field-type:          0
-		common-field-port
-		common-field-handle
-		common-field-errors
-		common-field-flat?
+		cmnfld-type:                0
+		cmnfld-port
+		cmnfld-handle
+		cmnfld-errors
+		cmnfld-flat?
 
-		env-field-count:            5
-		env-field-connections
-		env-field-timeout
+		envfld-count:               5
+		envfld-connections
+		envfld-timeout
 
-		dbc-field-environment:      5
-		dbc-field-statements
-		dbc-field-commit
-		dbc-field-catalog
+		confld-environment:         5
+		confld-statements
+		confld-commit
+		confld-catalog
 
-		stmt-field-connection:      5
-		stmt-field-cursor
-		stmt-field-sql
-		stmt-field-params
-		stmt-field-prms-status
-		stmt-field-window
-		stmt-field-columns
-		stmt-field-rows-status
-		stmt-field-rows-fetched
-		stmt-field-access
-		stmt-field-bookmarks?
-		stmt-field-debug?
-		stmt-field-timeout
-		stmt-field-position
-		stmt-field-length
+		stmfld-connection:          5
+		stmfld-cursor
+		stmfld-sql
+		stmfld-params
+		stmfld-prms-status
+		stmfld-window
+		stmfld-columns
+		stmfld-rows-status
+		stmfld-rows-fetched
+		stmfld-access
+		stmfld-bookmarks?
+		stmfld-debug?
+		stmfld-timeout
+		stmfld-position
+		stmfld-length
 
-		col-field-word:             0
-		col-field-name
-		col-field-sql-type
-		col-field-c-type
-		col-field-col-size
-		col-field-digits
-		col-field-nullable
-		col-field-buffer
-		col-field-buffer-len
-		col-field-strlen-ind
-		col-field-fields
+		colfld-word:                0
+		colfld-name
+		colfld-sql-type
+		colfld-c-type
+		colfld-col-size
+		colfld-digits
+		colfld-nullable
+		colfld-buffer
+		colfld-buffer-len
+		colfld-strlen-ind
+		colfld-fields
 
-		crsr-field-statement:       5
-		crsr-field-position
+		csrfld-statement:           5
+		csrfld-position
 	]
 
 
@@ -2905,6 +2940,43 @@ odbc: context [
 	]
 
 
+	;------------------------------------- print-heap --
+	;   debugging only
+
+	print-heap: func [
+		heap            [byte-ptr!]
+		/local
+			i           [integer!]
+			rc          [integer!]
+			step        [sql_heap_entry!]
+	][
+		step:           declare sql_heap_entry!
+		step/data:      null
+		step/size:      0
+		step/overhead:  as byte! 0
+		step/index:     as byte! 0
+		step/flags:     0
+
+		rc: 0
+		i:  0
+
+		while [true] [
+			rc: sql/HeapWalk heap as byte-ptr! step
+			if zero? rc [break]
+
+			i: i + 1
+			print [i tab step/data space step/size tab as integer! step/overhead tab as integer! step/index tab step/flags tab]
+
+			unless zero? (step/flags >> 8 and 0001h) [print ["region"      space]]
+			unless zero? (step/flags >> 8 and 0002h) [print ["uncommitted" space]]
+			unless zero? (step/flags >> 8 and 0004h) [print ["busy"        space]]
+			unless zero? (step/flags >> 8 and 0010h) [print ["moveable"    space]]
+			unless zero? (step/flags >> 8 and 0020h) [print ["ddeshare"    space]]
+			print [lf]
+		]
+	]
+
+
 	;--------------------------------------- wlength? --
 	;   There must be sth. better
 
@@ -2929,42 +3001,61 @@ odbc: context [
 		handle          [integer!]
 		entity          [red-object!]
 		/local
-			buffer-len  [integer!]
+			allocating  [subroutine!]
 			errors      [red-block!]
-			message     [byte-ptr!]
-			message-len [integer!]
+			freeing     [subroutine!]
+			mesg-buf    [byte-ptr!]
+			mesg-buflen [integer!]
+			mesg-len    [integer!]
 			native      [integer!]
 			rc          [integer!]
 			record-num  [integer!]
 			state       [byte-ptr!]
-			values      [red-value!]
-	][
-		#if debug? = yes [print ["DIAGNOSE-ERROR [" lf]]
+			vent        [red-value!]
+	][                                                                          #if debug? = yes [print ["DIAGNOSE-ERROR [" lf]]
+		allocating: [
+			if state = null [                                                   #if debug? = yes [print ["^-HeapAlloc state, " 5 + 1 << 1 " bytes"]]
+				state:    sql/HeapAlloc heap 0 5 + 1 << 1                       #if debug? = yes [print [" @ " state " " either state <> null ["ok."] ["failed!"] lf]]
+			]
+			if mesg-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc mesg-buf, " mesg-buflen + 1 << 1 " bytes"]]
+				mesg-buf: sql/HeapAlloc heap 0 mesg-buflen + 1 << 1             #if debug? = yes [print [" @ " mesg-buf " " either mesg-buf <> null ["ok."] ["failed!"] lf]]
+			]
+		]
+		freeing: [
+			if state <> null [                                                  #if debug? = yes [print ["^-HeapFree state @ " state]]
+				sql/HeapFree heap 0 state                                       #if debug? = yes [print [" ok." lf]]
+				state: null
+			]
+			if mesg-buf <> null [                                               #if debug? = yes [print ["^-HeapFree mesg-buf @ " mesg-buf]]
+				sql/HeapFree heap 0 mesg-buf                                    #if debug? = yes [print [" ok." lf]]
+				mesg-buf: null
+			]
+		]
 
-		values:         object/get-values entity
-		errors:         as red-block! values + common-field-errors
+		vent:           object/get-values entity
+		errors:         as red-block! vent + cmnfld-errors
+
 		block/rs-clear errors
 
-	;   state:          allocate             5 + 1 << 1
-		state:          sql/HeapAlloc heap 0 5 + 1 << 1
-
-		#if debug? = yes [print ["^-allocate state, " 5 + 1 << 1 " bytes @ " state lf]]
-
-		native:         0
-		message:        null
-		message-len:    0
-		buffer-len:     2047
 		record-num:     0
+		state:          null
+		native:         0
+		mesg-buf:       null
+		mesg-buflen:    2047
+		mesg-len:       0
 
 		until [
 			record-num: record-num + 1
 
 			loop 2 [
-				if message = null [
-				;   message: allocate             buffer-len + 1 << 1
-					message: sql/HeapAlloc heap 0 buffer-len + 1 << 1
+				allocating
 
-					#if debug? = yes [print ["^-allocate message, " buffer-len + 1 << 1 " bytes @ " message lf]]
+				if any [
+					state = null
+					mesg-buf = null
+				][
+					rc: sql/no-data                                             ;-- silently break out with ODBC_NO_DATA, throw no error
+					break                                                       ;
 				]
 
 				ODBC_RESULT sql/SQLGetDiagRec handle-type
@@ -2972,54 +3063,37 @@ odbc: context [
 											  record-num
 											  state
 											 :native
-											  message
-											  buffer-len
-											 :message-len
-
-				#if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
-
-				either any [
-					rc <> sql/success-with-info
-					message-len <= buffer-len
+											  mesg-buf
+											  mesg-buflen
+											 :mesg-len                          #if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
+				if all [
+					ODBC_INFO
+					mesg-buflen < mesg-len
 				][
-					break                               ;-- buffer was large enough
-				][
-					#if debug? = yes [print ["^-free message @ " message lf]]
-
-				;	free                message         ;-- try again with bigger buffer
-					sql/HeapFree heap 0 message         ;-- try again with bigger buffer
-					message: null
-					buffer-len: message-len
+					mesg-buflen: mesg-len
+					freeing
+					continue                                                    ;-- try again with bigger buffer
 				]
+
+				break                                                           ;-- buffer was large enough
 			]
 
 			if ODBC_SUCCEEDED [
-				string/load-in as c-string! state 5             errors UTF-16LE
-				integer/make-in                                 errors native
-				string/load-in as c-string! message message-len errors UTF-16LE
-
-				#if debug? = yes [
-					print-buffer message message-len << 1
-
-					print-wstring as c-string! state
-					print [" " native " "]
-					print-wstring as c-string! message
-					print [lf]
-				]
+																				#if debug? = yes [print-wstring as c-string! state]
+				string/load-in as c-string! state 5           errors UTF-16LE   #if debug? = yes [print-buffer mesg-buf mesg-len << 1]
+				integer/make-in                               errors native     #if debug? = yes [print [" " native " "]]
+				string/load-in as c-string! mesg-buf mesg-len errors UTF-16LE   #if debug? = yes [print-wstring as c-string! mesg-buf]
+																				#if debug? = yes [print [lf]]
 			]
 
-			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
+			any [
+				ODBC_INVALID
+				ODBC_ERROR
+				ODBC_NO_DATA
+			]
 		]
 
-		#if debug? = yes [print ["^-free state @ "   state   lf]]
-		#if debug? = yes [print ["^-free message @ " message lf]]
-
-	;	free                state
-		sql/HeapFree heap 0 state
-	;	free                message
-		sql/HeapFree heap 0 message
-
-		#if debug? = yes [print ["]" lf]]
+		freeing                                                                 #if debug? = yes [print ["]" lf]]
 	]
 
 ] ;context: odbc

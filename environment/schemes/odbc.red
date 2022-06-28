@@ -19,9 +19,9 @@ odbc: context [
 	;---------------------------------------- objects --
 	;
 
-	environment: context [                              ;-- FIXME: singleton, ODBC allows for multiple
+	environment: context [                                                      ;-- FIXME: singleton, ODBC allows for multiple
 		type:          'environment
-		port:           none                            ;-- unused common
+		port:           none                                                    ;-- unused common
 		handle:         none
 		errors:         []
 		flat?:          no
@@ -34,25 +34,28 @@ odbc: context [
 			cause-error 'access 'no-port-action []
 		]]
 		drivers: does [do reduce [get-drivers]]
-		sources: function [/user /system] [
-			do reduce case [
-				user    [[get-sources/user]]
-				system  [[get-sources/system]]
-				/else   [[get-sources]]
+		sources: function [/user /system] [do reduce case [
+			user    [[get-sources/user]]
+			system  [[get-sources/system]]
+			/else   [[get-sources]]
+		]]
+
+		on-change*: func [word old new] [
+			switch/default word [
+				timeout [case [
+					none? new [0]
+					all [integer? new positive? new] [new]
+					all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
+					/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
+				]]
+				flat? [unless logic? new [flat?: old
+					cause-error 'script 'expect-type ['the 'flat? logic!]
+				]]
+			][
+				set-quiet word old
+				cause-error 'script 'locked-word [word]
 			]
 		]
-
-		on-change*: func [word old new] [switch word [
-			timeout [case [
-				none? new [0]
-				all [integer? new positive? new] [new]
-				all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
-				/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
-			]]
-			flat? [unless logic? new [flat?: old
-				cause-error 'script 'expect-type ['the 'flat? logic!]
-			]]
-		]]
 	]
 
 	connection-proto: context [
@@ -66,17 +69,29 @@ odbc: context [
 		commit?:        yes
 		catalog:        none
 
-		on-change*: func [word old new] [switch word [
-			catalog [either string? new [use-catalog self new] [catalog: old
-				cause-error 'script 'expect-type ['the 'catalog string!]
-			]]
-			commit? [either logic? new [set-commit-mode self new] [commit?: old
-				cause-error 'script 'expect-type ['the 'commit? logic!]
-			]]
-			flat? [unless find [logic! none!] type?/word new [flat?: old
-				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
-			]]
-		]]
+		on-change*: func [word old new] [
+			switch/default word [
+				catalog [either string? new [
+					use-catalog self new
+				][
+					catalog: old
+					cause-error 'script 'expect-type ['the 'catalog string!]
+				]]
+				commit? [either logic? new [
+					set-commit-mode self new
+				][
+					commit?: old
+					cause-error 'script 'expect-type ['the 'commit? logic!]
+				]]
+				flat? [unless find [logic! none!] type?/word new [
+					flat?: old
+					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
+				]]
+			][
+				set-quiet word old
+				cause-error 'script 'locked-word [word]
+			]
+		]
 	]
 
 	statement-proto: context [
@@ -90,7 +105,7 @@ odbc: context [
 		sql:            none
 		params:         []
 		prms-status:    none
-		window:         1024                            ;-- default window size
+		window:         1024                                                    ;-- default window size
 		columns:        []
 		rows-status:    none
 		rows-fetched:   none
@@ -101,33 +116,63 @@ odbc: context [
 		position:       none
 		length:         none
 
-		on-change*: func [word old new] [switch word [
-			access [either find [default forward static dynamic keyset] new [set-access self new] [access: old
-				cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
-			]]
-			bookmarks? [either logic? new [set-bookmarks self new] [bookmarks?: old
-				cause-error 'script 'expect-type ['the 'bookmarks? logic!]
-			]]
-			flat? [unless find [logic! none!] type?/word new [flat?: old
-				cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
-			]]
-			timeout [set-query-timeout self case [
-				none? new [0]
-				all [integer? new positive? new] [new]
-				all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
-				/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
-			]]
-		]]
+		on-change*: func [word old new] [
+			switch/default word [
+				access [either find [default forward static dynamic keyset] new [
+					set-access self new
+				][
+					access: old
+					cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
+				]]
+				bookmarks? [either logic? new [
+					set-bookmarks self new
+				][
+					bookmarks?: old
+					cause-error 'script 'expect-type ['the 'bookmarks? logic!]
+				]]
+				flat? [unless find [logic! none!] type?/word new [
+					flat?: old
+					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
+				]]
+				debug? [unless logic? new [
+					debug?: old
+					cause-error 'script 'expect-type ['the 'debug? logic!]
+				]]
+				timeout [set-query-timeout self case [
+					none? new [0]
+					all [integer? new positive? new] [new]
+					all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
+					/else [
+						timeout: old
+						cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]
+					]
+				]]
+				window [unless all [integer? new positive? new] [
+					window: old
+					cause-error 'script 'expect-type ['the 'window [not negative? integer!]]
+				]]
+			][
+				set-quiet word old
+				cause-error 'script 'locked-word [word]
+			]
+		]
 	]
 
 	cursor-proto: context [
 		type:          'cursor
-		port:			none
+		port:           none
 		handle:         none
-		errors:         none                            ;-- unused commons
-		flat?:          none                            ;
+		errors:         none                                                    ;-- unused commons
+		flat?:          none                                                    ;
 		statement:      none
 		position:       0
+
+		*on-change: func [word old new] [
+			switch/default word [] [
+				set-quiet word old
+				cause-error 'script 'locked-word [word]
+			]
+		]
 	]
 
 
@@ -140,46 +185,44 @@ odbc: context [
 	open-environment: routine [
 		environment     [object!]
 		/local
-			sqlhenv     [integer!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["OPEN-ENVIRONMENT [" lf]]
-
+			sqlhenv     [integer!]
+			venv        [red-value!]
+	][                                                                          #if debug? = yes [print ["OPEN-ENVIRONMENT [" lf]]
 		sqlhenv: 0
+		venv:    object/get-values environment
 
 		ODBC_RESULT sql/SQLAllocHandle sql/handle-env
-									   null
-									  :sqlhenv
-
-		#if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
+		                               null
+		                              :sqlhenv                                  #if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
 
 		if ODBC_ERROR [fire [
 			TO_ERROR(internal no-memory)
 		]]
 
 		copy-cell as red-value! handle/box sqlhenv
-				  (object/get-values environment) + odbc/common-field-handle
+		          venv + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-henv/value = " sqlhenv lf]]
 
 		ODBC_RESULT sql/SQLSetEnvAttr sqlhenv
-									  sql/attr-odbc-version
-									  sql/ov-odbc3
-									  0
-
-		#if debug? = yes [print ["^-SQLSetEnvAttr " rc lf]]
+		                              sql/attr-odbc-version
+		                              sql/ov-odbc3
+		                              0                                         #if debug? = yes [print ["^-SQLSetEnvAttr " rc lf]]
 
 		ODBC_DIAGNOSIS(sql/handle-env sqlhenv environment)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) environment
 		]]
-		if ODBC_ERROR   [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values environment) + odbc/common-field-errors
+		if ODBC_ERROR [fire [
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		#if debug? = yes [print ["]" lf]]
+		odbc/heap: sql/HeapCreate 0 0 0                                         #if debug? = yes [print ["^-HeapCreate " odbc/heap lf]]
+		unless odbc/heap <> null [
+			TO_ERROR(internal no-memory)
+		]
 
-		SET_RETURN(none-value)
+		SET_RETURN(none-value)                                                  #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -189,113 +232,112 @@ odbc: context [
 	list-drivers: routine [
 		environment     [object!]
 		/local
-			henv        [red-handle!]
-			drivers     [red-block!]
-			rc          [integer!]
-			direction   [integer!]
-			desc-buf    [byte-ptr!]
-			desc-len    [integer!]
-			desc-out    [integer!]
+			allocating  [subroutine!]
 			attr-buf    [byte-ptr!]
+			attr-buflen [integer!]
 			attr-len    [integer!]
-			attr-out    [integer!]
-	][
-		#if debug? = yes [print ["LIST-DRIVERS [" lf]]
+			desc-buf    [byte-ptr!]
+			desc-buflen [integer!]
+			desc-len    [integer!]
+			dir         [integer!]
+			drivers     [red-block!]
+			freeing     [subroutine!]
+			henv        [red-handle!]
+			rc          [integer!]
+			venv        [red-value!]
+	][                                                                          #if debug? = yes [print ["LIST-DRIVERS [" lf]]
+		allocating: [
+			if desc-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc desc-buf, " desc-buflen + 1 << 1 " bytes"]]
+				desc-buf: sql/HeapAlloc odbc/heap 0 desc-buflen + 1 << 1        #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
+			]
+			if attr-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc attr-buf, " attr-buflen + 1 << 1 " bytes"]]
+				attr-buf: sql/HeapAlloc odbc/heap 0 attr-buflen + 1 << 1        #if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
+			]
+		]
+		freeing: [
+			if desc-buf <> null [                                               #if debug? = yes [print ["^-HeapFree desc-buf @ " desc-buf]]
+				sql/HeapFree odbc/heap 0 desc-buf                               #if debug? = yes [print [" ok." lf]]
+				desc-buf: null
+			]
+			if attr-buf <> null [                                               #if debug? = yes [print ["^-HeapFree attr-buf @ " attr-buf]]
+				sql/HeapFree odbc/heap 0 attr-buf                               #if debug? = yes [print [" ok." lf]]
+				attr-buf: null
+			]
+		]
 
-		direction:  sql/fetch-first
-		desc-buf:   null
-		desc-len:   1000
-		desc-out:   0
-		attr-buf:   null
-		attr-len:   4000
-		attr-out:   0
+		desc-buf:    null
+		attr-buf:    null
+		desc-buflen: 1023
+		attr-buflen: 4095
+		desc-len:    0
+		attr-len:    0
 
-		henv: as red-handle! (object/get-values environment) + odbc/common-field-handle
-
-		drivers: block/push-only* 32
+		venv:        object/get-values environment
+		henv:        as red-handle! venv + odbc/cmnfld-handle
+		drivers:     block/push-only* 32
+		dir:         sql/fetch-first
 
 		until [
-			if desc-buf = null [
-			;	desc-buf: allocate                  desc-len + 1 << 1
-				desc-buf: sql/HeapAlloc odbc/heap 0 desc-len + 1 << 1
+			allocating
 
-				#if debug? = yes [print ["^-allocate desc-buf, " desc-len + 1 << 1 " bytes @ " desc-buf lf]]
-			]
-			if attr-buf = null [
-			;	attr-buf: allocate                  attr-len + 1 << 1
-				attr-buf: sql/HeapAlloc odbc/heap 0 attr-len + 1 << 1
-
-				#if debug? = yes [print ["^-allocate attr-buf, " attr-len + 1 << 1 " bytes @ " attr-buf lf]]
+			if any [
+				desc-buf = null
+				attr-buf = null
+			][
+				freeing
+				fire [TO_ERROR(internal no-memory)]
 			]
 
 			ODBC_RESULT sql/SQLDrivers henv/value
-									   direction
-									   desc-buf
-									   desc-len
-									  :desc-out
-									   attr-buf
-									   attr-len
-									  :attr-out
-
-			#if debug? = yes [print ["^-SQLDrivers " rc lf]]
-
-			either all [ODBC_INFO any [
-				desc-len < desc-out
-				attr-len < attr-out
-			]] [
-				#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
-
-			;	free                     desc-buf
-				sql/HeapFree odbc/heap 0 desc-buf
-				desc-buf: null
-				desc-len: desc-out
-
-				#if debug? = yes [print ["^-free attr-buf @ " attr-buf lf]]
-
-			;	free                     attr-buf
-				sql/HeapFree odbc/heap 0 attr-buf
-				attr-buf: null
-				attr-len: attr-out
-
-				block/rs-clear drivers                  ;-- try again with larger buffers
-				direction: sql/fetch-first              ;
-
-				continue
-			][
-				direction: sql/fetch-next
-			]
+			                           dir
+			                           desc-buf
+			                           desc-buflen
+			                          :desc-len
+			                           attr-buf
+			                           attr-buflen
+			                          :attr-len                                 #if debug? = yes [print ["^-SQLDrivers " rc lf]]
 
 			ODBC_DIAGNOSIS(sql/handle-env henv/value environment)
 
 			if ODBC_SUCCEEDED [
-				string/load-in as c-string! desc-buf desc-out drivers UTF-16LE
-				string/load-in as c-string! attr-buf attr-out drivers UTF-16LE
+				string/load-in as c-string! desc-buf desc-len drivers UTF-16LE
+				string/load-in as c-string! attr-buf attr-len drivers UTF-16LE
+				dir: sql/fetch-next
 			]
 
-			any [ODBC_INVALID ODBC_NO_DATA ODBC_ERROR]
+			if all [
+				ODBC_INFO
+				any [
+					desc-buflen < desc-len
+					attr-buflen < attr-len
+				]
+			][
+				freeing
+
+				desc-buflen: desc-len
+				attr-buflen: attr-len
+
+				block/rs-clear drivers                                          ;-- try again with larger buffers
+				dir: sql/fetch-first                                            ;
+			]
+
+			any [
+				ODBC_INVALID
+				ODBC_ERROR
+				ODBC_NO_DATA
+			]
 		]
 
-		#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
-
-	;	free                     desc-buf
-		sql/HeapFree odbc/heap 0 desc-buf
-
-		#if debug? = yes [print ["^-free attr-buf @ " attr-buf lf]]
-
-	;	free                     attr-buf
-		sql/HeapFree odbc/heap 0 attr-buf
+		freeing
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values environment) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		SET_RETURN(drivers)
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN(drivers)                                                     #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -306,126 +348,123 @@ odbc: context [
 		environment     [object!]
 		scope           [word!]
 		/local
+			allocating  [subroutine!]
 			desc-buf    [byte-ptr!]
+			desc-buflen [integer!]
 			desc-len    [integer!]
-			desc-out    [integer!]
-			direction   [integer!]
+			dir         [integer!]
+			directing   [subroutine!]
+			freeing     [subroutine!]
 			henv        [red-handle!]
-			init-dir    [subroutine!]
 			rc          [integer!]
+			serv-buf    [byte-ptr!]
+			serv-buflen [integer!]
+			serv-len    [integer!]
 			sources     [red-block!]
-			srvr-buf    [byte-ptr!]
-			srvr-len    [integer!]
-			srvr-out    [integer!]
 			sym         [integer!]
-	][
-		#if debug? = yes [print ["LIST-SOURCES [" lf]]
-
-		init-dir: [
-			direction: case [
+			venv        [red-value!]
+	][                                                                          #if debug? = yes [print ["LIST-SOURCES [" lf]]
+		allocating: [
+			if serv-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc serv-buf, " serv-buflen + 1 << 1 " bytes"]]
+				serv-buf: sql/HeapAlloc odbc/heap 0 serv-buflen + 1 << 1        #if debug? = yes [print [" @ " serv-buf " " either serv-buf <> null ["ok."] ["failed!"] lf]]
+			]
+			if desc-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc desc-buf, " desc-buflen + 1 << 1 " bytes"]]
+				desc-buf: sql/HeapAlloc odbc/heap 0 desc-buflen + 1 << 1        #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
+			]
+		]
+		freeing: [
+			if serv-buf <> null [                                               #if debug? = yes [print ["^-HeapFree serv-buf @ " serv-buf]]
+				sql/HeapFree odbc/heap 0 serv-buf                               #if debug? = yes [print [" ok." lf]]
+				serv-buf: null
+			]
+			if desc-buf <> null [                                               #if debug? = yes [print ["^-HeapFree desc-buf @ " desc-buf]]
+				sql/HeapFree odbc/heap 0 desc-buf                               #if debug? = yes [print [" ok." lf]]
+				desc-buf: null
+			]
+		]
+		directing: [
+			dir: case [
 				sym = odbc/_user   [sql/fetch-first-user]
 				sym = odbc/_system [sql/fetch-first-system]
 				sym = odbc/_all    [sql/fetch-first]
 			]
 		]
 
-		sym: symbol/resolve scope/symbol
+		serv-buf:    null
+		desc-buf:    null
+		serv-buflen: 1023
+		desc-buflen: 4095
+		serv-len:    0
+		desc-len:    0
 
-		init-dir
+		venv:        object/get-values environment
+		henv:        as red-handle! venv + odbc/cmnfld-handle
+		sources:     block/push-only* 32
+		sym:         symbol/resolve scope/symbol
 
-		srvr-buf:       null
-		srvr-len:       1000
-		srvr-out:       0
-		desc-buf:       null
-		desc-len:       4000
-		desc-out:       0
-
-		henv: as red-handle! (object/get-values environment) + odbc/common-field-handle
-
-		sources: block/push-only* 32
+		directing
 
 		until [
-			if srvr-buf = null [
-			;	srvr-buf: allocate                  srvr-len + 1 << 1
-				srvr-buf: sql/HeapAlloc odbc/heap 0 srvr-len + 1 << 1
+			allocating
 
-				#if debug? = yes [print ["^-allocate srvr-buf, " srvr-len + 1 << 1 " bytes @ " srvr-buf lf]]
-			]
-			if desc-buf = null [
-			;	desc-buf: allocate                  desc-len + 1 << 1
-				desc-buf: sql/HeapAlloc odbc/heap 0 desc-len + 1 << 1
-
-				#if debug? = yes [print ["^-allocate desc-buf, " desc-len + 1 << 1 " bytes @ " desc-buf lf]]
+			if any [
+				serv-buf = null
+				desc-buf = null
+			][
+				freeing
+				fire [TO_ERROR(internal no-memory)]
 			]
 
 			ODBC_RESULT sql/SQLDataSources henv/value
-										   direction
-										   srvr-buf
-										   srvr-len
-										  :srvr-out
-										   desc-buf
-										   desc-len
-										  :desc-out
-
-			#if debug? = yes [print ["^-SQLDataSources " rc lf]]
-
-			either all [ODBC_INFO any [
-				srvr-len < srvr-out
-				desc-len < desc-out
-			]] [
-				#if debug? = yes [print ["^-free srvr-buf @ " srvr-buf lf]]
-
-			;	free                     srvr-buf
-				sql/HeapFree odbc/heap 0 srvr-buf
-				srvr-buf: null
-				srvr-len: srvr-out
-
-				#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
-
-			;	free                     desc-buf
-				sql/HeapFree odbc/heap 0 desc-buf
-				desc-buf: null
-				desc-len: desc-out
-
-				block/rs-clear sources                  ;-- try again with larger buffers
-				init-dir                                ;
-
-				continue
-			][
-				direction: sql/fetch-next
-			]
+			                               dir
+			                               serv-buf
+			                               serv-buflen
+			                              :serv-len
+			                               desc-buf
+			                               desc-buflen
+			                              :desc-len                             #if debug? = yes [print ["^-SQLDataSources " rc lf]]
 
 			ODBC_DIAGNOSIS(sql/handle-env henv/value environment)
 
 			if ODBC_SUCCEEDED [
-				string/load-in as c-string! srvr-buf srvr-out sources UTF-16LE
-				string/load-in as c-string! desc-buf desc-out sources UTF-16LE
+				string/load-in as c-string! serv-buf serv-len sources UTF-16LE
+				string/load-in as c-string! desc-buf desc-len sources UTF-16LE
+				dir: sql/fetch-next
 			]
 
-			any [ODBC_INVALID ODBC_NO_DATA ODBC_ERROR]
+			if all [
+				ODBC_INFO
+				any [
+					serv-buflen < serv-len
+					desc-buflen < desc-len
+				]
+			][
+				freeing
+
+				serv-buflen: serv-len
+				desc-buflen: desc-len
+
+				block/rs-clear sources                                          ;-- try again with larger buffers
+				directing                                                       ;
+			]
+
+			any [
+				ODBC_INVALID
+				ODBC_ERROR
+				ODBC_NO_DATA
+			]
 		]
 
-		#if debug? = yes [print ["^-free srvr-buf @ " srvr-buf lf]]
-
-	;	free                     srvr-buf
-		sql/HeapFree odbc/heap 0 srvr-buf
-
-		#if debug? = yes [print ["^-free desc-buf @ " desc-buf lf]]
-
-	;	free                     desc-buf
-		sql/HeapFree odbc/heap 0 desc-buf
+		freeing
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values environment) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		#if debug? = yes [print ["]" lf]]
-
-		SET_RETURN(sources)
+		SET_RETURN(sources)                                                     #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -438,23 +477,24 @@ odbc: context [
 		dsn             [string!]
 		/local
 			henv        [red-handle!]
-			sqlhdbc     [integer!]
 			rc          [integer!]
+			sqlhcon     [integer!]
 			str         [c-string!]
 			str-len     [integer!]
 			timeout     [red-value!]
-	][
-		#if debug? = yes [print ["OPEN-CONNECTION [" lf]]
+			vcon        [red-value!]
+			venv        [red-value!]
+	][                                                                          #if debug? = yes [print ["OPEN-CONNECTION [" lf]]
+		venv:       object/get-values environment
+		vcon:       object/get-values connection
 
-		henv:       as red-handle! (object/get-values environment) + odbc/common-field-handle
-		timeout:                   (object/get-values environment) + odbc/env-field-timeout
-		sqlhdbc:    0
+		henv:       as red-handle! venv + odbc/cmnfld-handle
+		timeout:                   venv + odbc/envfld-timeout
+		sqlhcon:    0
 
 		ODBC_RESULT sql/SQLAllocHandle sql/handle-dbc
-									   henv/value
-									  :sqlhdbc
-
-		#if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
+		                               henv/value
+		                              :sqlhcon                                  #if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
 
 		ODBC_DIAGNOSIS(sql/handle-env henv/value environment)
 
@@ -462,49 +502,42 @@ odbc: context [
 			TO_ERROR(script invalid-arg) environment
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values environment) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		copy-cell as red-value! handle/box sqlhdbc
-				  (object/get-values connection) + odbc/common-field-handle
-
-		#if debug? = yes [print ["^-hdbc/value = " sqlhdbc lf]]
+		copy-cell as red-value! handle/box sqlhcon
+		          vcon + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-hcon/value = " sqlhcon lf]]
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
 			set-connection connection sql/attr-login-timeout
-									  integer/get timeout
-									  sql/is-integer
+			                          integer/get timeout
+			                          sql/is-integer
 		]
 
-		str:     unicode/to-utf16 dsn                   ;-- connect to driver
+		str:     unicode/to-utf16 dsn                                           ;-- connect to driver
 		str-len: odbc/wlength? str
 
-		ODBC_RESULT sql/SQLDriverConnect sqlhdbc
-										 null
-										 as byte-ptr! str
-										 str-len
-										 null
-										 0
-										 null
-										 sql/driver-noprompt
+		ODBC_RESULT sql/SQLDriverConnect sqlhcon
+		                                 null
+		                                 as byte-ptr! str
+		                                 str-len
+		                                 null
+		                                 0
+		                                 null
+		                                 sql/driver-noprompt                    #if debug? = yes [print ["^-SQLDriverConnect " rc lf]]
 
-		#if debug? = yes [print ["^-SQLDriverConnect " rc lf]]
+		ODBC_DIAGNOSIS(sql/handle-dbc sqlhcon connection)
 
-		ODBC_DIAGNOSIS(sql/handle-dbc sqlhdbc connection)
-
-		block/rs-append-block as red-block! (object/get-values environment) + odbc/common-field-errors
-							  as red-block! (object/get-values connection ) + odbc/common-field-errors
+		block/rs-append-block as red-block! venv + odbc/cmnfld-errors
+		                      as red-block! vcon + odbc/cmnfld-errors
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -516,9 +549,9 @@ odbc: context [
 		catalog         [string!]
 	][
 		set-connection connection
-					   sql/attr-current-catalog
-					   as integer! unicode/to-utf16 catalog
-					   sql/is-pointer
+		               sql/attr-current-catalog
+		               as integer! unicode/to-utf16 catalog
+		               sql/is-pointer
 	]
 
 
@@ -542,56 +575,74 @@ odbc: context [
 	pick-metadata: routine [
 		entity          [object!]
 		info            [integer!]
-		attribute?      [logic!]                        ;-- true = attr, false info (dbc only)
+		attribute?      [logic!]                                                ;-- true = attr, false info (dbc only)
 		/local
-			buffer      [byte-ptr!]
-			buflen      [integer!]
-			htype       [integer!]
+			allocating  [subroutine!]
+			attr-buf    [byte-ptr!]
+			attr-buflen [integer!]
+			attr-len    [integer!]
+			freeing     [subroutine!]
 			hndl        [red-handle!]
-			intptr      [int-ptr!]
-			outlen      [integer!]
+			htype       [integer!]
+			int-ptr     [int-ptr!]
 			rc          [integer!]
 			sym         [integer!]
 			type        [red-word!]
-			value       [red-value!]
+			vent        [red-value!]
 	][
-		intptr: declare int-ptr!
-		buflen: 2000
-		outlen:    0
+		allocating: [
+			if attr-buf = null [                                                ;if debug? = yes [print ["^-HeapAlloc attr-buf, " attr-buflen + 1 << 1 " bytes"]]
+				attr-buf: sql/HeapAlloc odbc/heap 0 attr-buflen + 1 << 1        ;if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
+			]
+		]
+		freeing: [
+			if attr-buf <> null [                                               ;if debug? = yes [print ["^-HeapFree attr-buf @ " attr-buf]]
+				sql/HeapFree odbc/heap 0 attr-buf                               ;if debug? = yes [print [" ok." lf]]
+				attr-buf: null
+			]
+		]
 
-		hndl:   as red-handle! (object/get-values entity) + odbc/common-field-handle
-		type:   as red-word!   (object/get-values entity) + odbc/common-field-type
-		sym:    symbol/resolve type/symbol
+		attr-buf:    null
+		attr-buflen: 2000
+		attr-len:    0
+
+		int-ptr:     declare int-ptr!
+		vent:        object/get-values entity
+		hndl:        as red-handle! vent + odbc/cmnfld-handle
+		type:        as red-word!   vent + odbc/cmnfld-type
+		sym:         symbol/resolve type/symbol
 
 		loop 2 [
-		;	buffer: allocate                  buflen + 1
-			buffer: sql/HeapAlloc odbc/heap 0 buflen + 1
+			freeing
+			allocating
 
-			case [
+			if attr-buf = null [fire [
+				TO_ERROR(internal no-memory)
+			]]
+
+			ODBC_RESULT case [
 				sym = odbc/_environment [
-					ODBC_RESULT sql/SQLGetEnvAttr hndl/value info buffer buflen :outlen
+					sql/SQLGetEnvAttr     hndl/value info attr-buf attr-buflen :attr-len
 				]
-				all [sym = odbc/_connection attribute?] [
-					ODBC_RESULT sql/SQLGetConnectAttr hndl/value info buffer buflen :outlen
-				]
-				all [sym = odbc/_connection not attribute?] [
-					ODBC_RESULT sql/SQLGetInfo hndl/value info buffer buflen :outlen
-				]
+				sym = odbc/_connection [either attribute? [
+					sql/SQLGetConnectAttr hndl/value info attr-buf attr-buflen :attr-len
+				][
+					sql/SQLGetInfo        hndl/value info attr-buf attr-buflen :attr-len
+				]]
 				sym = odbc/_statement [
-					ODBC_RESULT sql/SQLGetStmtAttr hndl/value info buffer buflen :outlen
+					sql/SQLGetStmtAttr    hndl/value info attr-buf attr-buflen :attr-len
 				]
 			]
 
-			either any [
-				rc <> sql/success-with-info
-				outlen <= buflen
+			if all [
+				ODBC_INFO
+				attr-buflen < attr-len
 			][
-				break                                   ;-- buffer was large enough
-			][
-			;	free                     buffer         ;-- try again with bigger buffer
-				sql/HeapFree odbc/heap 0 buffer         ;-- try again with bigger buffer
-				buflen: outlen
+				attr-buflen: attr-len
+				continue                                                        ;-- try again with bigger buffer
 			]
+
+			break                                                               ;-- buffer was large enough
 		]
 
 		htype: case [
@@ -602,118 +653,137 @@ odbc: context [
 
 		ODBC_DIAGNOSIS(htype hndl/value entity)
 
-		if ODBC_INVALID [fire [
+		if ODBC_INVALID [freeing fire [
 			TO_ERROR(script invalid-arg) entity
 		]]
-		if ODBC_ERROR [
-			SET_RETURN(none-value)
-		;	free                     buffer
-			sql/HeapFree odbc/heap 0 buffer
-			exit
-		]
 
-		intptr: as int-ptr! buffer
-
-		;-- strings
-		;
-		if any [
-			all [attribute? = true sym = odbc/_connection any [
-				info = sql/attr-current-catalog
-				info = sql/attr-tracefile
-				info = sql/attr-translate-lib
-			]]
-			all [attribute? = false sym = odbc/_connection any [
-				info = sql/accessible-procedures
-				info = sql/accessible-tables
-				info = sql/catalog-name
-				info = sql/catalog-name-separator
-				info = sql/catalog-term
-				info = sql/collation-seq
-				info = sql/column-alias
-				info = sql/data-source-name
-				info = sql/data-source-read-only
-				info = sql/dbms-name
-				info = sql/dbms-ver
-				info = sql/describe-parameter
-				info = sql/dm-ver
-				info = sql/driver-name
-				info = sql/driver-odbc-ver
-				info = sql/driver-ver
-				info = sql/expressions-in-orderby
-				info = sql/integrity
-				info = sql/keywords
-				info = sql/like-escape-clause
-				info = sql/max-row-size-includes-long
-				info = sql/mult-result-sets
-				info = sql/multiple-active-txn
-				info = sql/need-long-data-len
-				info = sql/odbc-ver
-				info = sql/order-by-columns-in-select
-				info = sql/procedure-term
-				info = sql/procedures
-				info = sql/row-updates
-				info = sql/schema-term
-				info = sql/search-pattern-escape
-				info = sql/server-name
-				info = sql/special-characters
-				info = sql/table-term
-				info = sql/user-name
-				info = sql/xopen-cli-year
-			]]
-		][
-			#if debug? = yes [odbc/print-buffer buffer outlen]
-			SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
-		;	free                     buffer
-			sql/HeapFree odbc/heap 0 buffer
-			exit
-		]
-
-		;-- handles
-		;
-		if all [attribute? = true any [
-			all [sym = odbc/_connection any [
-				info = sql/attr-async-dbc-event
-			;	info = sql/attr-async-dbc-pcallback
-			;	info = sql/attr-async-dbc-pcontext
-			;	info = sql/attr-dbc-info-token
-			;	info = sql/attr-dbc-enlist-in-dtc
-				info = sql/attr-quiet-mode
-			]]
-			all [sym = odbc/_statement any [
-				info = sql/attr-app-param-desc
-				info = sql/attr-app-row-desc
-				info = sql/attr-async-stmt-event
-			;	info = sql/attr-async-stmt-functions
-			;	info = sql/attr-async-stmt-pcallback
-			;	info = sql/attr-async-stmt-pcontext
-				info = sql/attr-fetch-bookmark-ptr
-				info = sql/attr-imp-param-desc
-				info = sql/attr-imp-row-desc
-				info = sql/attr-param-bind-offset-ptr
-				info = sql/attr-param-operation-ptr
-				info = sql/attr-param-status-ptr
-				info = sql/attr-params-processed-ptr
-				info = sql/attr-row-bind-offset-ptr
-				info = sql/attr-row-operation-ptr
-				info = sql/attr-row-status-ptr
-				info = sql/attr-rows-fetched-ptr
-			]]
-		]][
-			either zero? intptr/value [
+		case [
+			;-- treat attribute as NONE! i/o throwing an error
+			;
+			ODBC_ERROR [
 				SET_RETURN(none-value)
-			][
-				SET_RETURN((handle/box intptr/value))
 			]
-		;	free                     buffer
-			sql/HeapFree odbc/heap 0 buffer
-			exit
+
+			;-- treat attribute as STRING!
+			;
+			any [
+				all [
+					sym = odbc/_connection
+					attribute? = true
+					any [
+						info = sql/attr-current-catalog
+						info = sql/attr-tracefile
+						info = sql/attr-translate-lib
+					]
+				]
+				all [
+					sym = odbc/_connection
+					attribute? = false
+					any [
+						info = sql/accessible-procedures
+						info = sql/accessible-tables
+						info = sql/catalog-name
+						info = sql/catalog-name-separator
+						info = sql/catalog-term
+						info = sql/collation-seq
+						info = sql/column-alias
+						info = sql/data-source-name
+						info = sql/data-source-read-only
+						info = sql/dbms-name
+						info = sql/dbms-ver
+						info = sql/describe-parameter
+						info = sql/dm-ver
+						info = sql/driver-name
+						info = sql/driver-odbc-ver
+						info = sql/driver-ver
+						info = sql/expressions-in-orderby
+						info = sql/integrity
+						info = sql/keywords
+						info = sql/like-escape-clause
+						info = sql/max-row-size-includes-long
+						info = sql/mult-result-sets
+						info = sql/multiple-active-txn
+						info = sql/need-long-data-len
+						info = sql/odbc-ver
+						info = sql/order-by-columns-in-select
+						info = sql/procedure-term
+						info = sql/procedures
+						info = sql/row-updates
+						info = sql/schema-term
+						info = sql/search-pattern-escape
+						info = sql/server-name
+						info = sql/special-characters
+						info = sql/table-term
+						info = sql/user-name
+						info = sql/xopen-cli-year
+					]
+				]
+			][                                                                  #if debug? = yes [odbc/print-buffer attr-buf attr-len]
+				SET_RETURN((
+					string/load as c-string! attr-buf
+					            odbc/wlength? as c-string! attr-buf
+					            UTF-16LE
+				))
+			]
+
+			;-- treat attribute as HANDLE!
+			;
+			any [
+				all [
+					sym = odbc/_connection
+					attribute? = true
+					any [
+						info = sql/attr-async-dbc-event
+					;   info = sql/attr-async-dbc-pcallback
+					;   info = sql/attr-async-dbc-pcontext
+					;   info = sql/attr-dbc-info-token
+					;   info = sql/attr-dbc-enlist-in-dtc
+						info = sql/attr-quiet-mode
+					]
+				]
+				all [
+					sym = odbc/_statement
+					attribute? = true
+					any [
+						info = sql/attr-app-param-desc
+						info = sql/attr-app-row-desc
+						info = sql/attr-async-stmt-event
+					;   info = sql/attr-async-stmt-functions
+					;   info = sql/attr-async-stmt-pcallback
+					;   info = sql/attr-async-stmt-pcontext
+						info = sql/attr-fetch-bookmark-ptr
+						info = sql/attr-imp-param-desc
+						info = sql/attr-imp-row-desc
+						info = sql/attr-param-bind-offset-ptr
+						info = sql/attr-param-operation-ptr
+						info = sql/attr-param-status-ptr
+						info = sql/attr-params-processed-ptr
+						info = sql/attr-row-bind-offset-ptr
+						info = sql/attr-row-operation-ptr
+						info = sql/attr-row-status-ptr
+						info = sql/attr-rows-fetched-ptr
+					]
+				]
+			][
+				int-ptr: as int-ptr! attr-buf
+
+				SET_RETURN((either zero? int-ptr/value [
+					none-value
+				][
+					handle/box int-ptr/value
+				]))
+			]
+
+			;-- treat attribute as INTEGER!
+			;
+			true [
+				int-ptr: as int-ptr! attr-buf
+
+				SET_RETURN((integer/box int-ptr/value))
+			]
 		]
 
-		;-- integers
-		;
-		SET_RETURN((integer/box intptr/value))
-	;	free                     buffer
-		sql/HeapFree odbc/heap 0 buffer
+		freeing
 	]
 
 
@@ -724,30 +794,27 @@ odbc: context [
 		connection      [object!]
 		commit?         [logic!]
 		/local
-			hdbc        [red-handle!]
+			hcon        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["END-TRANSACTION [" lf]]
-
-		hdbc: as red-handle! (object/get-values connection) + odbc/common-field-handle
+			vcon        [red-value!]
+	][                                                                          #if debug? = yes [print ["END-TRANSACTION [" lf]]
+		vcon: object/get-values connection
+		hcon: as red-handle! vcon + odbc/cmnfld-handle
 
 		ODBC_RESULT sql/SQLEndTran sql/handle-dbc
-								   hdbc/value
-								   either commit? [0] [1] ;SQL_COMMIT/ROLLBACK
+		                           hcon/value
+		                           either commit? [0] [1]                       ;-- SQL_COMMIT/ROLLBACK
+																				#if debug? = yes [print ["^-SQLEndTran " rc lf]]
 
-		#if debug? = yes [print ["^-SQLEndTran " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -759,45 +826,42 @@ odbc: context [
 		statement       [object!]
 		/local
 			fetched     [byte-ptr!]
-			hdbc        [red-handle!]
+			hcon        [red-handle!]
 			rc          [integer!]
-			sqlhstmt    [integer!]
-	][
-		#if debug? = yes [print ["OPEN-STATEMENT [" lf]]
-
-		hdbc:       as red-handle! (object/get-values connection) + odbc/common-field-handle
-		sqlhstmt:   0
+			sqlhstm     [integer!]
+			vcon        [red-value!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["OPEN-STATEMENT [" lf]]
+		vcon:       object/get-values connection
+		vstm:       object/get-values statement
+		hcon:       as red-handle! vcon + odbc/cmnfld-handle
+		sqlhstm:    0
+																				#if debug? = yes [print ["^-HeapAlloc fetched, " size? integer! " bytes"]]
+		fetched: sql/HeapAlloc odbc/heap 0 size? integer!                       #if debug? = yes [print [" @ " fetched " " either fetched <> null ["ok."] ["failed!"] lf]]
+		if fetched = null [fire [
+			TO_ERROR(internal no-memory)
+		]]
 
 		ODBC_RESULT sql/SQLAllocHandle sql/handle-stmt
-									   hdbc/value
-									  :sqlhstmt
+		                               hcon/value
+		                              :sqlhstm                                  #if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
 
-		#if debug? = yes [print ["^-SQLAllocHandle " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
 			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			as red-block! vcon + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["^-hstmt/value = " sqlhstmt lf]]
-
-		copy-cell as red-value! handle/box sqlhstmt
-				  (object/get-values statement) + odbc/common-field-handle
-
-	;	fetched: allocate                  size? integer!
-		fetched: sql/HeapAlloc odbc/heap 0 size? integer!
-
-		#if debug? = yes [print ["^-allocate fetched, " size? integer! " bytes @ " fetched lf]]
+																				#if debug? = yes [print ["^-hstm/value = " sqlhstm lf]]
+		copy-cell as red-value! handle/box sqlhstm
+		          vstm + odbc/cmnfld-handle
 
 		copy-cell as red-value! handle/box as integer! fetched
-				  (object/get-values statement) + odbc/stmt-field-rows-fetched
-
-		#if debug? = yes [print ["]" lf]]
+		          vstm + odbc/stmfld-rows-fetched
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -808,70 +872,77 @@ odbc: context [
 		connection      [object!]
 		sqlstr          [string!]
 		/local
-			buffer      [byte-ptr!]
-			buflen      [integer!]
-			hdbc        [red-handle!]
-			outlen      [integer!]
-			rc          [integer!]
+			allocating  [subroutine!]
 			cstr        [c-string!]
-	][
-		#if debug? = yes [print ["TRANSLATE-STATEMENT [" lf]]
-
-		buffer:     null
-		buflen:     2047
-		hdbc:       as red-handle! (object/get-values connection) + odbc/common-field-handle
-		outlen:     0
-		cstr:       unicode/to-utf16 sqlstr             ;-- null terminated utf16
-
-		loop 2 [
-		;	buffer: allocate                  buflen + 1 << 1
-			buffer: sql/HeapAlloc odbc/heap 0 buflen + 1 << 1
-
-			#if debug? = yes [print ["^-allocate buffer, " buflen + 1 << 1 " bytes @ " buffer lf]]
-
-			ODBC_RESULT sql/SQLNativeSql hdbc/value
-										 cstr
-										 sql/nts
-										 buffer
-										 buflen
-										:outlen
-
-			#if debug? = yes [print ["^-SQLNativeSql " rc lf]]
-
-			either any [
-				rc <> sql/success-with-info
-				outlen <= buflen
-			][
-				break                                   ;-- buffer was large enough
-			][
-				#if debug? = yes [print ["^-free buffer @ " buffer lf]]
-
-			;	free                     buffer         ;-- try again with bigger buffer
-				sql/HeapFree odbc/heap 0 buffer         ;-- try again with bigger buffer
-				buflen: outlen
+			freeing     [subroutine!]
+			hcon        [red-handle!]
+			natv-buf    [byte-ptr!]
+			natv-buflen [integer!]
+			natv-len    [integer!]
+			rc          [integer!]
+			vcon        [red-value!]
+	][                                                                          #if debug? = yes [print ["TRANSLATE-STATEMENT [" lf]]
+		allocating: [
+			if natv-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc natv-buf, " natv-buflen + 1 << 1 " bytes"]]
+				natv-buf: sql/HeapAlloc odbc/heap 0 natv-buflen + 1 << 1        #if debug? = yes [print [" @ " natv-buf " " either natv-buf <> null ["ok."] ["failed!"] lf]]
+			]
+		]
+		freeing: [
+			if natv-buf <> null [                                                #if debug? = yes [print ["^-HeapFree natv-buf @ " natv-buf]]
+				sql/HeapFree odbc/heap 0 natv-buf                                #if debug? = yes [print [" ok." lf]]
+				natv-buf: null
 			]
 		]
 
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		vcon:       object/get-values connection
+		hcon:       as red-handle! vcon + odbc/cmnfld-handle
+		cstr:       unicode/to-utf16 sqlstr                                     ;-- null terminated utf16
 
-		if ODBC_SUCCEEDED [
-			SET_RETURN((string/load as c-string! buffer odbc/wlength? as c-string! buffer UTF-16LE))
+		natv-buf:    null
+		natv-buflen: 2047
+		natv-len:    0
+
+		loop 2 [
+			freeing
+			allocating
+
+			if natv-buf = null [fire [
+				TO_ERROR(internal no-memory)
+			]]
+
+			ODBC_RESULT sql/SQLNativeSql hcon/value
+			                             cstr
+			                             sql/nts
+			                             natv-buf
+			                             natv-buflen
+			                            :natv-len                               #if debug? = yes [print ["^-SQLNativeSql " rc lf]]
+
+			if all [
+				ODBC_INFO
+				natv-buflen < natv-len
+			][
+				natv-buflen: natv-len
+				continue                                                        ;-- try again with bigger buffer
+			]
+
+			break                                                               ;-- buffer was large enough
 		]
 
-		#if debug? = yes [print ["^-free buffer @ " buffer lf]]
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
-	;	free                     buffer
-		sql/HeapFree odbc/heap 0 buffer
+		if ODBC_SUCCEEDED [
+			SET_RETURN((string/load as c-string! natv-buf odbc/wlength? as c-string! natv-buf UTF-16LE))
+		]
+
+		freeing
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -884,33 +955,28 @@ odbc: context [
 		value           [integer!]
 		type            [integer!]
 		/local
-			hdbc        [red-handle!]
+			hcon        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["SET-CONNECTION [" lf]]
+			vcon        [red-value!]
+	][                                                                          #if debug? = yes [print ["SET-CONNECTION [" lf]]
+		vcon: object/get-values connection
+		hcon: as red-handle! vcon + odbc/cmnfld-handle
 
-		hdbc: as red-handle! (object/get-values connection) + odbc/common-field-handle
+		ODBC_RESULT sql/SQLSetConnectAttr hcon/value
+		                                  attribute
+		                                  value
+		                                  type                                  #if debug? = yes [print ["^-SQLSetConnectAttr " rc lf]]
 
-		ODBC_RESULT sql/SQLSetConnectAttr hdbc/value
-										  attribute
-										  value
-										  type
-
-		#if debug? = yes [print ["^-SQLSetConnectAttr " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
 		]]
 
-		SET_RETURN(none-value)
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN(none-value)                                                  #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -921,45 +987,38 @@ odbc: context [
 		connection      [object!]
 		attribute       [integer!]
 		/local
-			hdbc        [red-handle!]
-			buffer      [byte-ptr!]
-			intval      [int-ptr!]
-			buflen      [integer!]
-			length      [int-ptr!]
+			attr-buf    [byte-ptr!]
+			attr-buflen [integer!]
+			attr-len    [integer!]
+			attr-val    [integer!]
+			hcon        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["GET-CONNECTION [" lf]]
+			vcon        [red-value!]
+	][                                                                          #if debug? = yes [print ["GET-CONNECTION [" lf]]
+		vcon:   object/get-values connection
+		hcon:   as red-handle! vcon + odbc/cmnfld-handle
 
-		hdbc: as red-handle! (object/get-values connection) + odbc/common-field-handle
+		attr-val:       0
+		attr-buf:       as byte-ptr! :attr-val
+		attr-buflen:    4
+		attr-len:       0
 
-		intval: declare int-ptr!
-		intval/value: 0
-		buffer: as byte-ptr! intval
-		buflen: 4
-		length: declare int-ptr!
-		length/value: 0
+		ODBC_RESULT sql/SQLGetConnectAttr hcon/value
+		                                  attribute
+		                                  attr-buf
+		                                  attr-buflen
+		                                 :attr-len                              #if debug? = yes [print ["^-SQLGetConnectAttr " rc lf]]
 
-		ODBC_RESULT sql/SQLGetConnectAttr hdbc/value
-										  attribute
-										  buffer
-										  buflen
-										  length
-
-		#if debug? = yes [print ["^-SQLGetConnectAttr " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values connection) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
 		]]
 
-		SET_RETURN((integer/box intval/value))
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN((integer/box attr-val))                                      #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -972,31 +1031,27 @@ odbc: context [
 		value           [integer!]
 		type            [integer!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["SET-STATEMENT [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["SET-STATEMENT [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		ODBC_RESULT sql/SQLSetStmtAttr hstm/value
+		                               attribute
+		                               value
+		                               type                                     #if debug? = yes [print ["^-SQLSetStmtAttr " rc lf]]
 
-		ODBC_RESULT sql/SQLSetStmtAttr hstmt/value
-									   attribute
-									   value
-									   type
-
-		#if debug? = yes [print ["^-SQLSetStmtAttr " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1008,39 +1063,33 @@ odbc: context [
 		index           [integer!]
 		/local
 			cursor      [red-object!]
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
-			values      [red-value!]
-	][
-		#if debug? = yes [print ["SET-CURSOR [" lf]]
+			vcsr        [red-value!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["SET-CURSOR [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
+		cursor: as red-object! vstm + odbc/stmfld-cursor
+		vcsr:   object/get-values cursor
 
-		values: object/get-values statement
-		hstmt: 	as red-handle! values + odbc/common-field-handle
+		ODBC_RESULT sql/SQLSetPos hstm/value
+		                          index
+		                          sql/position
+		                          sql/lock-no-change                            #if debug? = yes [print ["^-SQLSetPos " rc lf]]
 
-		ODBC_RESULT sql/SQLSetPos hstmt/value
-								  index
-								  sql/position
-								  sql/lock-no-change
-
-		#if debug? = yes [print ["^-SQLSetPos " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) statement]
 		]
 		if any [ODBC_ERROR ODBC_NEED_DATA ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! values + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		cursor:	as red-object! values + odbc/stmt-field-cursor
-		values: object/get-values cursor
-
 		copy-cell as red-value! integer/box index
-				  values + odbc/crsr-field-position
-
-		#if debug? = yes [print ["]" lf]]
+		          vcsr + odbc/csrfld-position
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1051,33 +1100,29 @@ odbc: context [
 		statement       [object!]
 		params          [block!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
 			sqlstr      [c-string!]
-	][
-		#if debug? = yes [print ["PREPARE-STATEMENT [" lf]]
-
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["PREPARE-STATEMENT [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
 
 		sqlstr: unicode/to-utf16 as red-string! block/rs-head params
 
-		ODBC_RESULT sql/SQLPrepare hstmt/value
-								   sqlstr
-								   odbc/wlength? sqlstr
+		ODBC_RESULT sql/SQLPrepare hstm/value
+		                           sqlstr
+		                           odbc/wlength? sqlstr                         #if debug? = yes [print ["^-SQLPrepare " rc lf]]
 
-		#if debug? = yes [print ["^-SQLPrepare " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1088,27 +1133,23 @@ odbc: context [
 		statement       [object!]
 		/local
 			buffer      [red-handle!]
+			params      [red-block!]
 			prm         [integer!]
 			prms        [integer!]
-			params      [red-block!]
-	][
-		#if debug? = yes [print ["FREE-PARAMETERS [" lf]]
-
-		params: as red-block! (object/get-values statement) + odbc/stmt-field-params
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["FREE-PARAMETERS [" lf]]
+		vstm:   object/get-values statement
+		params: as red-block! vstm + odbc/stmfld-params
 		prms:   block/rs-length? params
 
 		prm: 0
 		loop prms [
-			buffer: as red-handle! block/rs-abs-at params prm
-														;-- NOTE: buffers come in param'n'strlen buffer pairs here
-		;	free                     as byte-ptr! buffer/value
+			buffer: as red-handle! block/rs-abs-at params prm                   ;-- NOTE: buffers come in param'n'strlen buffer pairs here
 			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
 			prm: prm + 1
 		]
 
-		block/rs-clear params
-
-		#if debug? = yes [print ["]" lf]]
+		block/rs-clear params                                                   #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1119,21 +1160,23 @@ odbc: context [
 		statement       [object!]
 		params          [block!]
 		/local
-			buffer      [byte-ptr!]
-			bufslot     [byte-ptr!]
 			buffers     [red-block!]
-			buflen      [integer!]
-			hstmt       [red-handle!]
 			c-string    [c-string!]
 			c-type      [integer!]
 			col-size    [integer!]
 			debug       [logic!]
 			digits      [integer!]
-			lenbuf      [int-ptr!]
-			lenslot     [int-ptr!]
-			maxlen      [integer!]
+			dt          [sql-date!]
+			hstm        [red-handle!]
+			len-buf     [byte-ptr!]
+			len-slot    [int-ptr!]
 			param       [red-value!]
 			prm         [integer!]
+			prm-buf     [byte-ptr!]
+			prm-buflen  [integer!]
+			prm-len     [integer!]
+			prm-slot    [byte-ptr!]
+			prm-slotlen [integer!]
 			prms        [integer!]
 			rc          [integer!]
 			red-binary  [red-binary!]
@@ -1141,61 +1184,51 @@ odbc: context [
 			red-time    [red-time!]
 			row         [integer!]
 			rows        [integer!]
-			size        [integer!]
 			series      [series!]
-			slotlen     [integer!]
+			size        [integer!]
 			sql-type    [integer!]
+			stat-buf    [byte-ptr!]
 			status      [red-handle!]
 			strlen      [integer!]
-			dt          [sql-date!]
 			tm          [sql-time!]
 			ts          [sql-timestamp!]
 			val-float   [float!]
 			val-integer [integer!]
 			value       [red-value!]
-			values      [red-value!]
-	][
-		#if debug? = yes [print ["BIND-PARAMETERS [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["BIND-PARAMETERS [" lf]]
+		vstm:   object/get-values statement
+		hstm:       as red-handle! vstm + odbc/cmnfld-handle
+		debug:           logic/get vstm + odbc/stmfld-debug?
 
-		values:     object/get-values statement
+		rows:      block/rs-length? params
+		prms:      block/rs-length? as red-block! block/rs-head params          #if debug? = yes [print ["^-" rows " rows of " prms " params" lf]]
 
-		hstmt:      as red-handle! values + odbc/common-field-handle
-		debug:           logic/get values + odbc/stmt-field-debug?
+																				#if debug? = yes [print ["^-HeapAlloc stat-buf, " rows * size? integer! " bytes"]]
+		stat-buf:  sql/HeapAlloc odbc/heap 0 rows * size? integer!              #if debug? = yes [print [" @ " stat-buf lf]]
+		status:    handle/box as integer! stat-buf
 
-		rows: block/rs-length? params
-		prms: block/rs-length? as red-block! block/rs-head params
-
-		#if debug? = yes [print ["^-" rows " rows of " prms " params" lf]]
-
-	;	status:    handle/box as integer! allocate                  rows * size? integer!
-		status:    handle/box as integer! sql/HeapAlloc odbc/heap 0 rows * size? integer!
-
-		#if debug? = yes [print ["^-allocate status/value, " rows * size? integer! " bytes @ " as byte-ptr! status/value lf]]
-
-		copy-cell as red-value! status                  ;-- store pointer in statement
-				  values + odbc/stmt-field-prms-status  ;
+		copy-cell as red-value! status                                          ;-- store pointer in statement
+		          vstm + odbc/stmfld-prms-status                                ;
 
 		set-statement statement sql/attr-paramset-size    rows         0
 		set-statement statement sql/attr-param-status-ptr status/value 0
 
-		buffers: as red-block! values + odbc/stmt-field-params
+		buffers: as red-block! vstm + odbc/stmfld-params
 
 		prm: 1
 		loop prms [
-			#if debug? = yes [print ["^-prm " prm lf]]
-
+																				#if debug? = yes [print ["^-prm " prm lf]]
 			;-- determine slotlen
 			;
 
-			maxlen: 0
+			prm-slotlen: 0
 			row: 1
 			loop rows [
-				#if debug? = yes [print ["^-^-slotlen? row " row "/" rows lf]]
+																				#if debug? = yes [print ["^-^-prm-slotlen? row " row "/" rows lf]]
 
-				value: block/rs-abs-at params row       ;-- NOTE: correct, because rows - 1 is the SQL string itself
-				param: block/rs-abs-at as red-block! value prm - 1
-
-				#if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
+				value: block/rs-abs-at params row                               ;-- NOTE: correct, because rows - 1 is the SQL string itself
+				param: block/rs-abs-at as red-block! value prm - 1              #if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
 
 				case [
 					any [
@@ -1206,78 +1239,74 @@ odbc: context [
 						TYPE_OF(param) = TYPE_EMAIL
 						TYPE_OF(param) = TYPE_REF
 					][
-						slotlen: (odbc/wlength? unicode/to-utf16 as red-string! param) + 1 << 1
-						#if debug? = yes [print ["^-^-^-slotlen = " slotlen lf]]
-						if maxlen < slotlen [maxlen: slotlen]
+						prm-len: (odbc/wlength? unicode/to-utf16 as red-string! param) + 1 << 1
+																				#if debug? = yes [print ["^-^-^-prm-len = " prm-len lf]]
+						if prm-slotlen < prm-len [prm-slotlen: prm-len]
 					]
 					TYPE_OF(param) = TYPE_BINARY [
-						slotlen: binary/rs-length? as red-binary! param
-						if maxlen < slotlen [maxlen: slotlen]
+						prm-len: binary/rs-length? as red-binary! param
+						if prm-slotlen < prm-len [prm-slotlen: prm-len]
 					]
 					TYPE_OF(param) = TYPE_INTEGER [
-						maxlen: 4 break
+						prm-slotlen: 4
+						break
 					]
 					TYPE_OF(param) = TYPE_FLOAT [
-						maxlen: 8 break
+						prm-slotlen: 8
+						break
 					]
 					TYPE_OF(param) = TYPE_LOGIC [
-						maxlen: 1 break
+						prm-slotlen: 1
+						break
 					]
 					TYPE_OF(param) = TYPE_TIME [
-						maxlen: 6 break
+						prm-slotlen: 6
+						break
 					]
 					TYPE_OF(param) = TYPE_DATE [
-						red-date: as red-date! param
-						maxlen: either as-logic red-date/date >> 16 and 01h [16] [6] ;-- NOTE: This is safe, because calling INSERT actor asserts values of same type
+						red-date:    as red-date! param
+						prm-slotlen: either as-logic red-date/date >> 16 and 01h [16] [6] ;-- NOTE: This is safe, because calling INSERT actor asserts values of same type
 						break
 					]
 					true [
-						if zero? maxlen [maxlen: 1]
+						if zero? prm-slotlen [prm-slotlen: 1]
 					]
 				]
 
 				row: row + 1
 			]
-			slotlen: maxlen
-
-			#if debug? = yes [print ["^-^-^-slotlen = " slotlen lf]]
-
+																				#if debug? = yes [print ["^-^-^-prm-slotlen = " prm-slotlen lf]]
 			;-- create buffer
 			;
 
-			buflen:  rows * slotlen
-		;	buffer:  allocate                  buflen
-			buffer:  sql/HeapAlloc odbc/heap 0 buflen
-			bufslot: buffer
-			handle/make-in buffers as integer! buffer
+			prm-buflen: rows * prm-slotlen                                      #if debug? = yes [print ["^-HeapAlloc prm-buf, " prm-buflen " bytes"]]
+			prm-buf:    sql/HeapAlloc odbc/heap 0 prm-buflen                    #if debug? = yes [print [" @ " prm-buf " " either val-buf <> null ["ok."] ["failed!"] lf]]
 
-			#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer lf]]
+																				#if debug? = yes [print ["^-HeapAlloc len-buf, " rows * size? integer! " bytes @ " lenbuf lf]]
+			len-buf:    sql/HeapAlloc odbc/heap 0 rows * size? integer!         #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
 
-		;	lenbuf:  as int-ptr! allocate                  rows * size? integer!
-			lenbuf:  as int-ptr! sql/HeapAlloc odbc/heap 0 rows * size? integer!
-			lenslot: lenbuf
-			handle/make-in buffers as integer! lenbuf
+			handle/make-in buffers as integer! prm-buf
+			handle/make-in buffers as integer! len-buf
 
-			#if debug? = yes [print ["^-allocate lenbuf, " rows * size? integer! " bytes @ " lenbuf lf]]
+			prm-slot:   prm-buf
+			len-slot:   as int-ptr! len-buf
 
 			;-- populate buffer array
 			;
 
-			c-type:     sql/c-default                   ;-- defaults
-			sql-type:   sql/type-null                   ;
+			c-type:     sql/c-default                                           ;-- defaults
+			sql-type:   sql/type-null                                           ;
 			col-size:   0
 			digits:     0
 
 			row: 1
 			loop rows [
-				#if debug? = yes [print ["^-^-populate row " row "/" rows lf]]
+																				#if debug? = yes [print ["^-^-populate row " row "/" rows lf]]
 
 				value: block/rs-abs-at params row                               ;-- NOTE: correct, because rows - 1 is the SQL string itself
-				param: block/rs-abs-at as red-block! value prm - 1
+				param: block/rs-abs-at as red-block! value prm - 1              #if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
 
-				#if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
-
-				lenslot/value: 0
+				len-slot/value: 0
 
 				switch TYPE_OF(param) [
 					TYPE_INTEGER [
@@ -1286,7 +1315,7 @@ odbc: context [
 
 						val-integer:            integer/get param
 
-						copy-memory bufslot as byte-ptr! :val-integer slotlen
+						copy-memory prm-slot as byte-ptr! :val-integer prm-slotlen
 					]
 					TYPE_FLOAT [
 						c-type:                 sql/c-double
@@ -1294,36 +1323,36 @@ odbc: context [
 
 						val-float:              float/get param
 
-						copy-memory bufslot as byte-ptr! :val-float slotlen
+						copy-memory prm-slot as byte-ptr! :val-float prm-slotlen
 					]
 					TYPE_ANY_STRING [
 						c-type:                 sql/c-wchar
 						sql-type:               sql/wvarchar
-						col-size:               slotlen
+						col-size:               prm-slotlen
 
 						c-string:               unicode/to-utf16 as red-string! param
 						strlen:                 odbc/wlength? c-string
-						lenslot/value:          strlen << 1                     ;-- actual octet length w/o null-terminator
+						len-slot/value:         strlen << 1                     ;-- actual octet length w/o null-terminator
 
-						copy-memory bufslot as byte-ptr! c-string strlen + 1 << 1
+						copy-memory prm-slot as byte-ptr! c-string strlen + 1 << 1
 					]
 					TYPE_BINARY [
 						c-type:                 sql/c-binary
 						sql-type:               sql/varbinary
-						col-size:               slotlen
+						col-size:               prm-slotlen
 
 						red-binary:             as red-binary! param
 						series:                 GET_BUFFER(red-binary)
-						lenslot/value:          binary/rs-length? red-binary
+						len-slot/value:         binary/rs-length? red-binary
 
-						copy-memory bufslot as byte-ptr! series/offset lenslot/value
+						copy-memory prm-slot as byte-ptr! series/offset len-slot/value
 					]
 					TYPE_LOGIC [
 						c-type:                 sql/c-bit
 						sql-type:               sql/bit
 						digits:                 1
 
-						bufslot/value:          as byte! logic/get param
+						prm-slot/value:         as byte! logic/get param
 					]
 					TYPE_DATE [
 						red-date:               as red-date! param
@@ -1333,21 +1362,21 @@ odbc: context [
 							sql-type:           sql/type-timestamp
 							digits:             7
 
-							ts:                 as sql-timestamp! bufslot
+							ts:                 as sql-timestamp! prm-slot
 							ts/year|month:                                   red-date/date >> 17                 ;-- year
-												or                          (red-date/date >> 12 and 0Fh << 16)  ;-- month
+							                    or                          (red-date/date >> 12 and 0Fh << 16)  ;-- month
 							ts/day|hour:                                     red-date/date >>  7 and 1Fh         ;-- day
-												or ((as integer! floor       red-date/time         / 3600.0) << 16)
+							                    or ((as integer! floor       red-date/time         / 3600.0) << 16)
 							ts/minute|second:       (as integer! floor (fmod red-date/time 3600.0) /   60.0)
-												or ((as integer!        fmod red-date/time   60.0          ) << 16)
+							                    or ((as integer!        fmod red-date/time   60.0          ) << 16)
 						][
 							c-type:             sql/c-type-date
 							sql-type:           sql/type-date
 							digits:             0
 
-							dt:                 as sql-date! bufslot
+							dt:                 as sql-date! prm-slot
 							dt/year|month:                                   red-date/date >> 17 or              ;-- year
-																			(red-date/date >> 12 and 0Fh << 16)  ;-- month
+							                                                (red-date/date >> 12 and 0Fh << 16)  ;-- month
 							dt/daylo:           as byte!                     red-date/date >>  7 and 1Fh
 							dt/dayhi:           as byte! 0
 						]
@@ -1357,69 +1386,62 @@ odbc: context [
 						sql-type:               sql/type-time
 
 						red-time:               as red-time! param
-						tm:                     as sql-time! bufslot
+						tm:                     as sql-time! prm-slot
 						tm/hour|minute:        (as integer!                  red-time/time         / 3600.0)
-										   or ((as integer!            (fmod red-time/time 3600.0) /   60.0) << 16)
+						                   or ((as integer!            (fmod red-time/time 3600.0) /   60.0) << 16)
 						val-integer:            as integer!             fmod red-time/time   60.0
 						tm/seclo:               as byte! val-integer
 						tm/sechi:               as byte! 0
 					]
 					default [
-						lenslot/value:          sql/null-data					;-- TYPE_NONE in particular
+						len-slot/value:         sql/null-data                   ;-- TYPE_NONE in particular
 					]
 				]
 
-				bufslot: bufslot + slotlen
-				lenslot: lenslot + 1
-				row:     row     + 1
+				prm-slot: prm-slot + prm-slotlen
+				len-slot: len-slot + 1
+				row:      row      + 1
 			]
 
 			;-- bind param
 			;
 
-			#if debug? = yes [print ["^-prm    "   prm      lf]]
-			#if debug? = yes [print ["^-C-type "   c-type   lf]]
-			#if debug? = yes [print ["^-SQL-type " sql-type lf]]
-			#if debug? = yes [print ["^-col-size " col-size lf]]
-			#if debug? = yes [print ["^-digits "   digits   lf]]
-			#if debug? = yes [print ["^-buffer "   buffer   lf]]
-			#if debug? = yes [print ["^-slotlen "  slotlen  lf]]
-			#if debug? = yes [print ["^-lenbuf "   lenbuf   lf]]
-
-			if zero? buflen [buffer: null]
-
+			if zero? prm-buflen [prm-buf: null]                                 #if debug? = yes [print ["^-prm    "      prm         lf]]
+																				#if debug? = yes [print ["^-C-type "      c-type      lf]]
+																				#if debug? = yes [print ["^-SQL-type "    sql-type    lf]]
+																				#if debug? = yes [print ["^-col-size "    col-size    lf]]
+																				#if debug? = yes [print ["^-digits "      digits      lf]]
+																				#if debug? = yes [print ["^-prm-buf "     prm-buf     lf]]
+																				#if debug? = yes [print ["^-prm-slotlen " prm-slotlen lf]]
+																				#if debug? = yes [print ["^-len-buf "     len-buf     lf]]
 			if debug [
-				odbc/print-buffer              buffer buflen
-				odbc/print-buffer as byte-ptr! lenbuf rows * size? integer!
+				odbc/print-buffer              prm-buf prm-buflen
+				odbc/print-buffer as byte-ptr! len-buf rows * size? integer!
 			]
 
-			ODBC_RESULT sql/SQLBindParameter hstmt/value
-											 prm        ;-- 1-indexed
-											 sql/param-input
-											 c-type
-											 sql-type
-											 col-size
-											 digits
-											 buffer
-											 slotlen
-											 lenbuf
+			ODBC_RESULT sql/SQLBindParameter hstm/value
+			                                 prm                                ;-- 1-indexed
+			                                 sql/param-input
+			                                 c-type
+			                                 sql-type
+			                                 col-size
+			                                 digits
+			                                 prm-buf
+			                                 prm-slotlen
+			                                 len-buf                            #if debug? = yes [print ["^-SQLBindParameter " rc lf]]
 
-			#if debug? = yes [print ["^-SQLBindParameter " rc lf]]
-
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 			if ODBC_INVALID [fire [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if ODBC_ERROR [fire [
-				TO_ERROR(script bad-bad) odbc/__odbc
-				as red-block! (object/get-values statement) + odbc/common-field-errors
+				TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 			]]
 
 			prm: prm + 1
 		]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1431,8 +1453,7 @@ odbc: context [
 		dialect         [block!]
 		strict          [logic!]
 		/local
-			bol         [integer!]
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			nullable    [integer!]
 			rc          [integer!]
 			reserved    [integer!]
@@ -1440,33 +1461,33 @@ odbc: context [
 			s4 s5 s6 s7 [c-string!]
 			scope       [integer!]
 			sctype      [integer!]
-			sym         [integer!]
+			sym1        [integer!]
+			sym2        [integer!]
 			uniq        [integer!]
 			v1 v2 v3
 			v4 v5 v6 v7 [red-value!]
 			value       [red-value!]
+			vstm        [red-value!]
 			wrd         [red-word!]
-
-	][
-		#if debug? = yes [print ["CATALOG-STATEMENT [" lf]]
-
+	][                                                                          #if debug? = yes [print ["CATALOG-STATEMENT [" lf]]
 		s1: null s2: null s3: null s4: null s5: null s6: null s7: null
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		vstm: object/get-values statement
+		hstm: as red-handle! vstm + odbc/cmnfld-handle
 
-		if strict [                                         ;-- NOTE: for data sources that don't
-			set-statement statement sql/attr-metadata-id    ;   treated as identifier
-									sql/true
-									sql/is-integer
+		if strict [
+			set-statement statement sql/attr-metadata-id
+			                        sql/true
+			                        sql/is-integer
 		]
 
-		wrd: as red-word! block/rs-abs-at dialect 0
-		sym: symbol/resolve wrd/symbol
+		wrd:  as red-word! block/rs-abs-at dialect 0
+		sym1: symbol/resolve wrd/symbol
 
-		value: block/rs-abs-at dialect 1
+		value:  block/rs-abs-at dialect 1
 		if TYPE_OF(value) = TYPE_WORD [
-			wrd: as red-word! value
-			bol: symbol/resolve wrd/symbol
+			wrd:  as red-word! value
+			sym2: symbol/resolve wrd/symbol
 		]
 
 		v1: block/rs-abs-at dialect 1
@@ -1487,132 +1508,156 @@ odbc: context [
 
 		case [
 			all [
-				sym = odbc/_column
-				bol = odbc/_privileges
+				sym1 = odbc/_column
+				sym2 = odbc/_privileges
 			][
-				ODBC_RESULT sql/SQLColumnPrivileges hstmt/value s2 sql/nts s3 sql/nts s4 sql/nts s5 sql/nts
-
-				#if debug? = yes [print ["^-SQLColumnPrivileges " rc lf]]
+				ODBC_RESULT sql/SQLColumnPrivileges hstm/value
+				                                    s2 sql/nts
+				                                    s3 sql/nts
+				                                    s4 sql/nts
+				                                    s5 sql/nts                  #if debug? = yes [print ["^-SQLColumnPrivileges " rc lf]]
 			]
 			all [
-				sym = odbc/_columns
+				sym1 = odbc/_columns
 			][
-				ODBC_RESULT sql/SQLColumns hstmt/value s1 sql/nts s2 sql/nts s3 sql/nts s4 sql/nts
-
-				#if debug? = yes [print ["^-SQLColumns " rc lf]]
+				ODBC_RESULT sql/SQLColumns hstm/value
+				                           s1 sql/nts
+				                           s2 sql/nts
+				                           s3 sql/nts
+				                           s4 sql/nts                           #if debug? = yes [print ["^-SQLColumns " rc lf]]
 			]
 			all [
-				sym = odbc/_foreign
-				bol = odbc/_keys
+				sym1 = odbc/_foreign
+				sym2 = odbc/_keys
 			][
-				ODBC_RESULT sql/SQLForeignKeys hstmt/value s2 sql/nts s3 sql/nts s4 sql/nts s5 sql/nts s6 sql/nts s7 sql/nts
-
-				#if debug? = yes [print ["^-SQLForeignKeys " rc lf]]
+				ODBC_RESULT sql/SQLForeignKeys hstm/value
+				                               s2 sql/nts
+				                               s3 sql/nts
+				                               s4 sql/nts
+				                               s5 sql/nts
+				                               s6 sql/nts
+				                               s7 sql/nts                       #if debug? = yes [print ["^-SQLForeignKeys " rc lf]]
 			]
 			all [
-				sym = odbc/_primary
-				bol = odbc/_keys
+				sym1 = odbc/_primary
+				sym2 = odbc/_keys
 			][
-				ODBC_RESULT sql/SQLPrimaryKeys hstmt/value s2 sql/nts s3 sql/nts s4 sql/nts
-
-				#if debug? = yes [print ["^-SQLPrimaryKeys " rc lf]]
+				ODBC_RESULT sql/SQLPrimaryKeys hstm/value
+				                               s2 sql/nts
+				                               s3 sql/nts
+				                               s4 sql/nts                       #if debug? = yes [print ["^-SQLPrimaryKeys " rc lf]]
 			]
 			all [
-				sym = odbc/_procedure
-				bol = odbc/_columns
+				sym1 = odbc/_procedure
+				sym2 = odbc/_columns
 			][
-				ODBC_RESULT sql/SQLProcedureColumns hstmt/value s2 sql/nts s3 sql/nts s4 sql/nts s5 sql/nts
-
-				#if debug? = yes [print ["^-SQLProcedureColumns " rc lf]]
+				ODBC_RESULT sql/SQLProcedureColumns hstm/value
+				                                    s2 sql/nts
+				                                    s3 sql/nts
+				                                    s4 sql/nts
+				                                    s5 sql/nts                  #if debug? = yes [print ["^-SQLProcedureColumns " rc lf]]
 			]
 			all [
-				sym = odbc/_procedures
+				sym1 = odbc/_procedures
 			][
-				ODBC_RESULT sql/SQLProcedures hstmt/value s1 sql/nts s2 sql/nts s3 sql/nts
-
-				#if debug? = yes [print ["^-SQLProcedures " rc lf]]
+				ODBC_RESULT sql/SQLProcedures hstm/value
+				                              s1 sql/nts
+				                              s2 sql/nts
+				                              s3 sql/nts                        #if debug? = yes [print ["^-SQLProcedures " rc lf]]
 			]
 			all [
-				sym = odbc/_special
-				bol = odbc/_columns
+				sym1 = odbc/_special
+				sym2 = odbc/_columns
 			][
-				sctype: sql/best-rowid                  ;-- default
+				sctype: sql/best-rowid                                          ;-- default
 
 				if TYPE_OF(v2) = TYPE_WORD [
-					wrd: as red-word! v2
-					sym: symbol/resolve wrd/symbol
+					wrd:  as red-word! v2
+					sym1: symbol/resolve wrd/symbol
 
 					sctype: case [
-						sym = odbc/_unique      [sql/best-rowid]
-						sym = odbc/_update      [sql/rowver]
-				]   ]
+						sym1 = odbc/_unique      [sql/best-rowid]
+						sym1 = odbc/_update      [sql/rowver]
+					]
+				]
 
-				scope: sql/scope-currow                 ;-- default
+				scope: sql/scope-currow                                         ;-- default
 
 				if TYPE_OF(v6) = TYPE_WORD [
-					wrd: as red-word! v6
-					sym: symbol/resolve wrd/symbol
+					wrd:  as red-word! v6
+					sym1: symbol/resolve wrd/symbol
 
 					scope: case [
-						sym = odbc/_row         [sql/scope-currow]
-						sym = odbc/_transaction [sql/scope-transaction]
-						sym = odbc/_session     [sql/scope-session]
-				]   ]
+						sym1 = odbc/_row         [sql/scope-currow]
+						sym1 = odbc/_transaction [sql/scope-transaction]
+						sym1 = odbc/_session     [sql/scope-session]
+					]
+				]
 
-				nullable: sql/no-nulls                  ;-- default
+				nullable: sql/no-nulls                                          ;-- default
 
 				if TYPE_OF(v7) = TYPE_LOGIC [
-					nullable: case [
-						logic/get v7            [sql/nullable]
-				]   ]
+					if logic/get v7 [
+						nullable: sql/nullable
+					]
+				]
 
-				ODBC_RESULT sql/SQLSpecialColumns hstmt/value sctype s3 sql/nts s4 sql/nts s5 sql/nts scope nullable
-
-				#if debug? = yes [print ["^-SQLSpecialColumns " rc lf]]
+				ODBC_RESULT sql/SQLSpecialColumns hstm/value
+				                                  sctype
+				                                  s3 sql/nts
+				                                  s4 sql/nts
+				                                  s5 sql/nts
+				                                  scope
+				                                  nullable                      #if debug? = yes [print ["^-SQLSpecialColumns " rc lf]]
 			]
 			all [
-				sym = odbc/_statistics
+				sym1 = odbc/_statistics                                         ;-- FIXME: SQL_QUICK vs. SQL_ENSURE not supported!
 			][
-				uniq:     sql/index-all                 ;-- default
+				uniq:     sql/index-all                                         ;-- default
 				reserved: 0
 
 				if TYPE_OF(v4) = TYPE_WORD [
 					wrd:  as red-word! v4
-					sym:  symbol/resolve wrd/symbol
+					sym1: symbol/resolve wrd/symbol
 					uniq: case [
-						sym = odbc/_all         [sql/index-all]
-						sym = odbc/_unique      [sql/index-unique]
-				]   ]
+						sym1 = odbc/_all        [sql/index-all]
+						sym2 = odbc/_unique     [sql/index-unique]
+					]
+				]
 
-				ODBC_RESULT sql/SQLStatistics hstmt/value s1 sql/nts s2 sql/nts s3 sql/nts uniq reserved
-														;-- FIXME: SQL_QUICK vs. SQL_ENSURE not supported!
-				#if debug? = yes [print ["^-SQLStatistics " rc lf]]
+				ODBC_RESULT sql/SQLStatistics hstm/value
+				                              s1 sql/nts
+				                              s2 sql/nts
+				                              s3 sql/nts
+				                              uniq
+				                              reserved                          #if debug? = yes [print ["^-SQLStatistics " rc lf]]
 			]
 			all [
-				sym = odbc/_table
-				bol = odbc/_privileges
+				sym1 = odbc/_table
+				sym2 = odbc/_privileges
 			][
-				ODBC_RESULT sql/SQLTablePrivileges hstmt/value s2 sql/nts s3 sql/nts s4 sql/nts
-
-				#if debug? = yes [print ["^-SQLTablePrivileges " rc lf]]
+				ODBC_RESULT sql/SQLTablePrivileges hstm/value
+				                                   s2 sql/nts
+				                                   s3 sql/nts
+				                                   s4 sql/nts                   #if debug? = yes [print ["^-SQLTablePrivileges " rc lf]]
 			]
 			all [
-				sym = odbc/_tables
+				sym1 = odbc/_tables
 			][
-				ODBC_RESULT sql/SQLTables hstmt/value s1 sql/nts s2 sql/nts s3 sql/nts s4 sql/nts
-
-				#if debug? = yes [print ["^-SQLTables " rc lf]]
+				ODBC_RESULT sql/SQLTables hstm/value
+				                          s1 sql/nts
+				                          s2 sql/nts
+				                          s3 sql/nts
+				                          s4 sql/nts                            #if debug? = yes [print ["^-SQLTables " rc lf]]
 			]
 			all [
-				sym = odbc/_types
+				sym1 = odbc/_types
 			][
-				ODBC_RESULT sql/SQLGetTypeInfo hstmt/value sql/all-types
-
-				#if debug? = yes [print ["^-SQLGetTypeInfo " rc lf]]
+				ODBC_RESULT sql/SQLGetTypeInfo hstm/value sql/all-types         #if debug? = yes [print ["^-SQLGetTypeInfo " rc lf]]
 			]
 		]
 
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		if strict [
 			set-statement statement sql/attr-metadata-id
@@ -1624,11 +1669,9 @@ odbc: context [
 			TO_ERROR(script invalid-arg) statement
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1638,25 +1681,21 @@ odbc: context [
 	execute-statement: routine [
 		statement       [object!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["EXECUTE-STATEMENT [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["EXECUTE-STATEMENT [" lf]]
+		vstm:  object/get-values statement
+		hstm:  as red-handle! vstm + odbc/cmnfld-handle
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		ODBC_RESULT sql/SQLExecute hstm/value                                   #if debug? = yes [print ["^-SQLExecute " rc lf]]
 
-		ODBC_RESULT sql/SQLExecute hstmt/value
-
-		#if debug? = yes [print ["^-SQLExecute " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		unless any [ODBC_SUCCEEDED ODBC_NO_DATA] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1666,29 +1705,24 @@ odbc: context [
 	affected-rows: routine [
 		statement       [object!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
 			rows        [integer!]
-	][
-		#if debug? = yes [print ["AFFECTED-ROWS [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["AFFECTED-ROWS [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
+		rows:   0
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
-		rows:  0
+		ODBC_RESULT sql/SQLRowCount hstm/value :rows                            #if debug? = yes [print ["^-SQLRowCount " rc ": " rows lf]]
 
-		ODBC_RESULT sql/SQLRowCount hstmt/value :rows
-
-		#if debug? = yes [print ["^-SQLRowCount " rc ": " rows lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		#if debug? = yes [print ["]" lf]]
-
-		SET_RETURN((integer/box rows))
+		SET_RETURN((integer/box rows))                                          #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1699,29 +1733,25 @@ odbc: context [
 		statement       [object!]
 		name            [string!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
 			str         [c-string!]
-	][
-		#if debug? = yes [print ["NAME-CURSOR [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["NAME-CURSOR [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
+		str:    unicode/to-utf16 name
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
-		str:   unicode/to-utf16 name
+		ODBC_RESULT sql/SQLSetCursorName hstm/value
+		                                 str
+		                                 odbc/wlength? str                      #if debug? = yes [print ["^-SQLSetCursorName " rc lf]]
 
-		ODBC_RESULT sql/SQLSetCursorName hstmt/value
-										 str
-										 odbc/wlength? str
-
-		#if debug? = yes [print ["^-SQLSetCursorName " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1731,20 +1761,22 @@ odbc: context [
 	fetched-rows: routine [
 		statement       [object!]
 		/local
-			value       [red-value!]
 			fetched     [red-handle!]
 			rows        [int-ptr!]
-	][
-		value:      (object/get-values statement) + odbc/stmt-field-rows-fetched
+			value       [red-value!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["FETCHED-ROWS [" lf]]
+		vstm:  object/get-values statement
+		value: vstm + odbc/stmfld-rows-fetched
 
-		either TYPE_OF(value) = TYPE_HANDLE [
+		SET_RETURN((either TYPE_OF(value) = TYPE_HANDLE [
 			fetched:    as red-handle! value
-			rows:       as int-ptr! fetched/value
+			rows:       as int-ptr! fetched/value                               #if debug? = yes [print ["^-rows-fetched = " rows/value lf]]
 
-			SET_RETURN((integer/box rows/value))
-		][
-			SET_RETURN(none-value)
-		]
+			integer/box rows/value
+		][                                                                      #if debug? = yes [print ["^-rows-fetched = none" lf]]
+			none-value
+		]))                                                                     #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1754,27 +1786,26 @@ odbc: context [
 	more-results?: routine [
 		statement       [object!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["MORE-RESULTS? [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["MORE-RESULTS? [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		ODBC_RESULT sql/SQLMoreResults hstm/value                               #if debug? = yes [print ["^-SQLMoreResults " rc lf]]
 
-		ODBC_RESULT sql/SQLMoreResults hstmt/value
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
-		#if debug? = yes [print ["^-SQLMoreResults " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
-
-		unless any [ODBC_NO_DATA ODBC_SUCCESS ODBC_INFO] [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+		unless any [
+			ODBC_NO_DATA
+			ODBC_SUCCESS
+			ODBC_INFO
+		] [fire [
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		either ODBC_SUCCEEDED [SET_RETURN(true-value)] [SET_RETURN(none-value)]
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN((either ODBC_SUCCEEDED [true-value] [none-value]))           #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1785,28 +1816,23 @@ odbc: context [
 		statement       [object!]
 		/local
 			cols        [integer!]
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["COUNT-COLUMNS [" lf]]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["COUNT-COLUMNS [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
+		cols:   0
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
-		cols:  0
+		ODBC_RESULT sql/SQLNumResultCols hstm/value :cols                       #if debug? = yes [print ["^-SQLNumResultCols " rc ": " cols lf]]
 
-		ODBC_RESULT sql/SQLNumResultCols hstmt/value :cols
-
-		#if debug? = yes [print ["^-SQLNumResultCols " rc ": " cols lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 		unless ODBC_SUCCEEDED [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc
-			as red-block! (object/get-values statement) + odbc/common-field-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		#if debug? = yes [print ["]" lf]]
-
-		SET_RETURN((integer/box cols))
+		SET_RETURN((integer/box cols))                                          #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1822,22 +1848,20 @@ odbc: context [
 			num         [integer!]
 			offset      [integer!]
 			strlen      [red-handle!]
-	][
-		#if debug? = yes [print ["FREE-COLUMNS [" lf]]
-
-		columns: as red-block! (object/get-values statement) + odbc/stmt-field-columns
-		cols:    (block/rs-length? columns) / odbc/col-field-fields
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["FREE-COLUMNS [" lf]]
+		vstm:    object/get-values statement
+		columns: as red-block! vstm + odbc/stmfld-columns
+		cols:    (block/rs-length? columns) / odbc/colfld-fields
 
 		num: 0
 		while [num < cols] [
-			offset: num * odbc/col-field-fields
+			offset: num * odbc/colfld-fields
 
-			buffer: as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
-			strlen: as red-handle! block/rs-abs-at columns offset + odbc/col-field-strlen-ind
+			buffer: as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
+			strlen: as red-handle! block/rs-abs-at columns offset + odbc/colfld-strlen-ind
 
-		;	free                     as byte-ptr! buffer/value
 			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
-		;	free                     as byte-ptr! strlen/value
 			sql/HeapFree odbc/heap 0 as byte-ptr! strlen/value
 
 			buffer/value: 0
@@ -1846,45 +1870,42 @@ odbc: context [
 			num: num + 1
 		]
 
-		block/rs-clear columns
-
-		#if debug? = yes [print ["]" lf]]
+		block/rs-clear columns                                                  #if debug? = yes [print ["]" lf]]
 	]
 
 
 	;----------------------------------- bind-columns --
 	;
 
-	bind-columns: routine [                             ;-- FIXME: needs code cleaning
+	bind-columns: routine [                                                     ;-- FIXME: needs code cleaning
 		statement       [object!]
 		cols            [integer!]
 		/local
 			bookmarks   [logic!]
-			buffer      [byte-ptr!]
-			buflen      [integer!]
-			bufsize     [integer!]
 			c-type      [integer!]
 			col         [integer!]
+			col-buf     [byte-ptr!]
+			col-buflen  [integer!]
 			col-size    [integer!]
+			col-slotlen [integer!]
 			columns     [red-block!]
 			digits      [integer!]
 			fetched     [red-handle!]
-			hstmt       [red-handle!]
-			name        [c-string!]
-			name-buflen [integer!]
-			name-len    [integer!]
+			hstm        [red-handle!]
+			len-buf     [int-ptr!]
+			len-buflen  [integer!]
+			nam-buf     [c-string!]
+			nam-buflen  [integer!]
+			nam-len     [integer!]
 			nullable    [integer!]
 			rc          [integer!]
+			row-buf     [byte-ptr!]
+			row-status  [red-handle!]
 			sql-type    [integer!]
-			status      [red-handle!]
-			strlen      [int-ptr!]
 			value       [red-value!]
-			values      [red-value!]
+			vstm        [red-value!]
 			window      [integer!]
-	][
-		#if debug? = yes [print ["BIND-COLUMNS [" lf]]
-
-		name-len:       0
+	][                                                                          #if debug? = yes [print ["BIND-COLUMNS [" lf]]
 		digits:         0
 		nullable:       0
 		sql-type:       0
@@ -1892,161 +1913,143 @@ odbc: context [
 		;-- determining statement attributes --
 		;
 
-		values: object/get-values statement
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle                        #if debug? = yes [print ["^-hstm/value = " hstm/value lf]]
 
-		hstmt:    as red-handle! values + odbc/common-field-handle
-
-		#if debug? = yes [print ["^-hstmt/value = " hstmt/value lf]]
-
-		bookmarks:     logic/get values + odbc/stmt-field-bookmarks?
-		fetched:  as red-handle! values + odbc/stmt-field-rows-fetched          ;-- number of rows fetched
-		window:      integer/get values + odbc/stmt-field-window                ;-- window size (num of rows to recieve)
-		value:                   values + odbc/stmt-field-rows-status
-
-		#if debug? = yes [print ["^-window: " window lf]]
-
+		bookmarks:     logic/get vstm + odbc/stmfld-bookmarks?
+		fetched:  as red-handle! vstm + odbc/stmfld-rows-fetched                ;-- number of rows fetched
+		window:      integer/get vstm + odbc/stmfld-window                      ;-- window size (num of rows to recieve)
+																				#if debug? = yes [print ["^-window = " window lf]]
+		value:                   vstm + odbc/stmfld-rows-status
 		if TYPE_OF(value) = TYPE_HANDLE [
-			status: as red-handle! value
-
-			#if debug? = yes [print ["^-free status/value @ " as byte-ptr! status/value lf]]
-
-		;	free                     as byte-ptr! status/value
-			sql/HeapFree odbc/heap 0 as byte-ptr! status/value
+			row-status: as red-handle! value                                    #if debug? = yes [print ["^-HeapFree row-buf @ " as byte-ptr! row-status/value]]
+			sql/HeapFree odbc/heap 0 as byte-ptr! row-status/value              #if debug? = yes [print [" ok." lf]]
 		]
-
-	;	status: handle/box as integer! allocate                  window * size? integer!
-		status: handle/box as integer! sql/HeapAlloc odbc/heap 0 window * size? integer!
-
-		#if debug? = yes [print ["^-allocate status/value, " window * size? integer! " bytes @ " as byte-ptr! status/value lf]]
-
-		copy-cell as red-value! status                  ;-- store pointer in statement
-				  values + odbc/stmt-field-rows-status  ;
-
-		;-- setting statement attributes --
-		;
-
-		set-statement statement sql/attr-row-bind-type    sql/bind-by-column    0
-		set-statement statement sql/attr-row-array-size   window                0
-		set-statement statement sql/attr-rows-fetched-ptr fetched/value         0
-
-		;-- describe & bind columns --
-		;
-
-		name-buflen: 256                                                        ;-- FIXME: why 256 ?!
-	;	name:        as c-string! allocate                  name-buflen         ;
-		name:        as c-string! sql/HeapAlloc odbc/heap 0 name-buflen         ;
-
-		if name = null [fire [
+																				#if debug? = yes [print ["^-HeapAlloc row-buf, " window * size? integer! " bytes"]]
+		row-buf:    sql/HeapAlloc odbc/heap 0 window * size? integer!
+		row-status: handle/box as integer! row-buf                              #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
+		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
 
-		#if debug? = yes [print ["^-allocate name, " name-buflen " bytes @ " as byte-ptr! name lf lf]]
+		copy-cell as red-value! row-status                                      ;-- store pointer in statement
+		          vstm + odbc/stmfld-rows-status                                ;
 
-		columns:        block/push-only* cols * odbc/col-field-fields
-		col-size:       0
-		col:            either bookmarks [0] [1]
-		buffer:         null
+		set-statement statement sql/attr-row-bind-type    sql/bind-by-column 0  ;-- setting statement attributes
+		set-statement statement sql/attr-row-array-size   window             0  ;
+		set-statement statement sql/attr-rows-fetched-ptr fetched/value      0  ;
+
+		nam-buflen: 127                                                         ;-- FIXME: this *should* be enough
+		nam-len:    0                                                           #if debug? = yes [print ["^-HeapAlloc nam-buf, " nam-buflen + 1 << 1 " bytes"]]
+		nam-buf:    as c-string! sql/HeapAlloc odbc/heap 0 nam-buflen + 1 << 1  #if debug? = yes [print [" @ " as byte-ptr! nam-buf " " either null <> as byte-ptr! nam-buf ["ok."] ["failed!"] lf lf]]
+		unless nam-buf <> null [fire [
+			TO_ERROR(internal no-memory)
+		]]
+
+		col-buf:     null
+
+		columns:     block/push-only* cols * odbc/colfld-fields
+		col-size:    0
+		col:         either bookmarks [0] [1]
 
 		while [col <= cols] [
+																				#if debug? = yes [print ["^-heap " either zero? sql/HeapValidate odbc/heap 0 null [" *** INVALID ***"]["valid"] lf]]
+																				;if debug? = yes [odbc/print-heap odbc/heap]
 
-			;-- describe --
-			;
+																				#if debug? = yes [print ["^-col = " col lf]]
+			ODBC_RESULT sql/SQLDescribeCol hstm/value
+			                               col
+			                               nam-buf
+			                               nam-buflen
+			                              :nam-len
+			                              :sql-type
+			                              :col-size
+			                              :digits
+			                              :nullable                             #if debug? = yes [print ["^-SQLDescribeCol " rc lf]]
 
-			#if debug? = yes [print ["^-col = " col ", name = " as byte-ptr! name ", name-buflen = " name-buflen lf]]
+																				#if debug? = yes [print ["^-heap " either zero? sql/HeapValidate odbc/heap 0 null [" *** INVALID ***"]["valid"] lf]]
+																				;if debug? = yes [odbc/print-heap odbc/heap]
 
-			ODBC_RESULT sql/SQLDescribeCol hstmt/value
-										   col
-										   name
-										   name-buflen
-										  :name-len
-										  :sql-type
-										  :col-size
-										  :digits
-										  :nullable
-
-			#if debug? = yes [print ["^-SQLDescribeCol " rc lf]]
-
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) odbc/__odbc
-				as red-block! (object/get-values statement) + odbc/common-field-errors
+				TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 			]]
-
-			#if debug? = yes [print ["^-name-len = " name-len ", sql-type = " sql-type ", col-size = " col-size ", digits = " digits ", nullable = " nullable lf]]
-
+																				#if debug? = yes [print ["^-nam-len = " nam-len ", name = "]]
+																				#if debug? = yes [odbc/print-wstring nam-buf nam-len]
+																				#if debug? = yes [print [", sql-type = " sql-type ", col-size = " col-size ", digits = " digits ", nullable = " nullable lf]]
 			case [
 				zero? col [
-					c-type: sql/c-varbookmark
-					buflen: col-size
+					c-type:      sql/c-varbookmark
+					col-slotlen: col-size
 				]
 				sql-type = sql/wlongvarchar [
-					c-type: sql/c-wchar
-					buflen: 0
+					c-type:      sql/c-wchar
+					col-slotlen: 0                                              ;-- defer to SQLGetData
 				]
 				any [
 					sql-type = sql/wchar
 					sql-type = sql/wvarchar
 				][
-					c-type: sql/c-wchar
-					buflen: col-size + 1 << 1
+					c-type:      sql/c-wchar
+					col-slotlen: col-size + 1 << 1
 				]
 				sql-type = sql/longvarchar [
-					c-type: sql/c-wchar
-					buflen: 0
+					c-type:      sql/c-wchar
+					col-slotlen: 0                                              ;-- defer to SQLGetData
 				]
 				any [
 					sql-type = sql/char
 					sql-type = sql/varchar
 				][
-					c-type: sql/c-wchar
-					buflen: col-size + 1 << 1
+					c-type:      sql/c-wchar
+					col-slotlen: col-size + 1 << 1
 				]
 				any [
 					sql-type = sql/decimal
 					sql-type = sql/numeric
 				][
-					c-type: sql/c-char
-					buflen: col-size + 1
+					c-type:      sql/c-char
+					col-slotlen: col-size + 1
 				]
 				any [
 					sql-type = sql/smallint
 					sql-type = sql/integer
 				][
-					c-type: sql/c-long
-					buflen: size? integer!
+					c-type:      sql/c-long
+					col-slotlen: size? integer!
 				]
 				any [
 					sql-type = sql/real
 					sql-type = sql/float
 					sql-type = sql/double
 				][
-					c-type: sql/c-double
-					buflen: size? float!
+					c-type:      sql/c-double
+					col-slotlen: size? float!
 				]
 				sql-type = sql/bit [
-					c-type: sql/c-bit
-					buflen: 1
+					c-type:      sql/c-bit
+					col-slotlen: 1
 				]
 				sql-type = sql/tinyint [
-					c-type: sql/c-long
-					buflen: size? integer!
+					c-type:      sql/c-long
+					col-slotlen: size? integer!
 				]
 				sql-type = sql/type-date [
-					c-type: sql/c-type-date
-					buflen: 6                           ;-- FIXME: size? sql-date!
+					c-type:      sql/c-type-date
+					col-slotlen: 6                                              ;-- FIXME: size? sql-date!
 				]
 				sql-type = sql/type-time [
-					c-type: sql/c-type-time
-					buflen: 6                           ;-- FIXME: size? sql-time!
+					c-type:      sql/c-type-time
+					col-slotlen: 6                                              ;-- FIXME: size? sql-time!
 				]
 				sql-type = sql/type-timestamp [
-					c-type: sql/c-type-timestamp
-					buflen: size? sql-timestamp!
+					c-type:      sql/c-type-timestamp
+					col-slotlen: size? sql-timestamp!
 				]
 				sql-type = sql/guid [
-					c-type: sql/c-char
-					buflen: col-size + 1
+					c-type:      sql/c-char
+					col-slotlen: col-size + 1
 				]
 				any [
 					sql-type = sql/interval-year
@@ -2063,190 +2066,170 @@ odbc: context [
 					sql-type = sql/interval-hour-to-second
 					sql-type = sql/interval-minute-to-second
 				][
-					c-type: sql/c-char
-					buflen: col-size + 1
+					c-type:      sql/c-char
+					col-slotlen: col-size + 1
 				]
 				sql-type = sql/bigint [
-					c-type: sql/c-char
-					buflen: col-size + 1
+					c-type:      sql/c-char
+					col-slotlen: col-size + 1
 				]
 				sql-type = sql/longvarbinary [
-					c-type: sql/c-binary
-					buflen: 0
+					c-type:      sql/c-binary
+					col-slotlen: 0                                              ;-- defer to SQLGetData
 				]
 				any [
 					sql-type = sql/varbinary
 					sql-type = sql/binary
 				][
-					c-type: sql/c-binary
-					buflen: col-size
+					c-type:      sql/c-binary
+					col-slotlen: col-size
 				]
 				true [
-					c-type: sql/c-wchar
-					buflen: col-size + 1
+					c-type:      sql/c-wchar
+					col-slotlen: col-size + 1
 				]
 			]
 
-			#if debug? = yes [print ["^-c-type = " c-type ", buflen = " buflen]]
-
-			bufsize: window * buflen
-
+																				#if debug? = yes [print ["^-c-type = " c-type ", col-slotlen = " col-slotlen]]
+			col-buflen: window * col-slotlen
 			if system/cpu/overflow? [fire [
 				TO_ERROR(internal limit-hit) odbc/__odbc
 			]]
+																				#if debug? = yes [print [" => col-buflen = " col-buflen lf]]
 
-			#if debug? = yes [print [", bufsize = " bufsize lf]]
-
-		;	buffer: allocate                  bufsize
-			buffer: sql/HeapAlloc odbc/heap 0 bufsize
-
-			#if debug? = yes [print ["^-allocate buffer, " bufsize " bytes @ " buffer "..." buffer + bufsize - 1 lf]]
-
-			if buffer = null [fire [
-				TO_ERROR(internal no-memory)
+			;--
+			;sql/Sleep 5 * 60 * 1000
+			;--
+																				#if debug? = yes [print ["^-HeapAlloc col-buf, " col-buflen " bytes "]]
+			col-buf: sql/HeapAlloc odbc/heap 0 col-buflen                       #if debug? = yes [print [" @ " col-buf " " either col-buf <> null ["ok."] ["failed!"] lf]]
+			if col-buf = null [fire [
+				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
 			]]
 
-		;	strlen: as int-ptr! allocate                  window * size? integer!
-			strlen: as int-ptr! sql/HeapAlloc odbc/heap 0 window * size? integer!
-
-			#if debug? = yes [print ["^-allocate strlen, " window * size? integer! " bytes @ " strlen lf]]
-
-			if strlen = null [fire [
-				TO_ERROR(internal no-memory)
+			len-buflen: window * size? integer!                                 #if debug? = yes [print ["^-HeapAlloc len-buf, " len-buflen * size? integer! " bytes "]]
+			len-buf: as int-ptr! sql/HeapAlloc odbc/heap 0 len-buflen           #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
+			if len-buf = null [fire [
+				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
 			]]
 
 			   none/make-in columns
-			either zero? col [
-				string/load-in "bookmark" 8 columns UTF-8
-			][
-				string/load-in name name-len columns UTF-16LE
-			]
+			;either zero? col [
+			;   string/load-in "bookmark" 8 columns UTF-8
+			;][
+			 string/load-in nam-buf nam-len columns UTF-16LE
+			;]
 			integer/make-in columns             sql-type
 			integer/make-in columns             c-type
 			integer/make-in columns             col-size
 			integer/make-in columns             digits
 			integer/make-in columns             nullable
-			 handle/make-in columns as integer! buffer
-			integer/make-in columns             buflen
-			 handle/make-in columns as integer! strlen
+			 handle/make-in columns as integer! col-buf
+			integer/make-in columns             col-slotlen
+			 handle/make-in columns as integer! len-buf
 
 			unless any [
-				sql-type = sql/wlongvarchar				;-- skip binding for deferred columns for
-				sql-type = sql/longvarchar				;   drivers w/o GetData Extensions
+				sql-type = sql/wlongvarchar                                     ;-- skip binding for deferred columns for
+				sql-type = sql/longvarchar                                      ;   drivers w/o GetData Extensions
 				sql-type = sql/longvarbinary
 			][
-				ODBC_RESULT sql/SQLBindCol hstmt/value
-										col
-										c-type
-										buffer
-										buflen
-										strlen
+				ODBC_RESULT sql/SQLBindCol hstm/value
+				                           col
+				                           c-type
+				                           col-buf
+				                           col-slotlen
+				                           len-buf                              #if debug? = yes [print ["^-SQLBindCol " rc lf lf]]
 
-				#if debug? = yes [print ["^-SQLBindCol " rc lf lf]]
-
-				ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+				ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 				unless ODBC_SUCCEEDED [fire [
-					TO_ERROR(script bad-bad) odbc/__odbc
-					as red-block! (object/get-values statement) + odbc/common-field-errors
+					TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 				]]
 			]
 
 			col: col + 1
 		]
+																				#if debug? = yes [print ["^-HeapFree nam-buf @ " as byte-ptr! nam-buf]]
+		sql/HeapFree odbc/heap 0 as byte-ptr! nam-buf                           #if debug? = yes [print [" ok." lf]]
 
-		#if debug? = yes [print ["^-free name @ " as byte-ptr! name " ... "]]
-
-	;	free                     as byte-ptr! name
-		sql/HeapFree odbc/heap 0 as byte-ptr! name
-		#if debug? = yes [print ["ok." lf]]
-
-		SET_RETURN(columns)
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN(columns)                                                     #if debug? = yes [print ["]" lf]]
 	]
 
 
 	;---------------------------------- fetch-columns --
 	;
 
-	fetch-columns: routine [                            ;-- FIXME: status column isn't used at all
+	fetch-columns: routine [                                                    ;-- FIXME: status column isn't used at all
 		statement       [object!]
 		orientation     [word!]
 		offset          [integer!]
 		/local
 			bookmarks   [logic!]
-			buffer      [red-handle!]
-			buflen      [integer!]
-			bufrow      [byte-ptr!]
-			c           [integer!]
 			c-type      [integer!]
-			d           [integer!]
+			col         [integer!]
+			col-buf     [byte-ptr!]
+			col-bufptr  [red-handle!]
 			col-size    [integer!]
+			col-slot    [byte-ptr!]
+			col-slotlen [integer!]
 			cols        [integer!]
 			columns     [red-block!]
+			d           [integer!]
 			debug       [logic!]
-			dt          [sql-date!]
 			digits      [integer!]
+			dt          [sql-date!]
 			fetched     [red-handle!]
-			flatval     [red-value!]
 			flat?       [logic!]
+			flatval     [red-value!]
 			float-ptr   [struct! [int1 [integer!] int2 [integer!]]]
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			int-ptr     [int-ptr!]
-			length      [int-ptr!]
+			len-buf     [int-ptr!]
+			len-slot    [int-ptr!]
+			len-bufptr  [red-handle!]
 			nullable    [integer!]
 			orient      [integer!]
-			r           [integer!]
 			rc          [integer!]
-			row         [red-block!]
-			rows        [int-ptr!]
+			row         [integer!]
+			row-status  [red-handle!]
+			rowblk      [red-block!]
+			rows        [integer!]
 			rowset      [red-block!]
 			s           [float!]
 			sql-type    [integer!]
-			status      [red-handle!]
-			strlen      [red-handle!]
 			sym         [integer!]
 			t           [float!]
-			tm          [sql-time!]
 			tim         [struct! [lo [integer!] hi [integer!]]]
+			tm          [sql-time!]
 			ts          [sql-timestamp!]
-			values      [red-value!]
+			vcon        [red-value!]
+			venv        [red-value!]
+			vstm        [red-value!]
 			window      [integer!]
-	][
-		#if debug? = yes [print ["FETCH-COLUMNS [" lf]]
+	][                                                                          #if debug? = yes [print ["FETCH-COLUMNS [" lf]]
+		vstm:     object/get-values statement
+		hstm:        as red-handle! vstm + odbc/cmnfld-handle
 
-		values:          object/get-values statement
-		hstmt:       as red-handle! values + odbc/common-field-handle
-
-		columns:      as red-block! values + odbc/stmt-field-columns
-		bookmarks:        logic/get values + odbc/stmt-field-bookmarks?
-		window:         integer/get values + odbc/stmt-field-window
-		fetched:     as red-handle! values + odbc/stmt-field-rows-fetched
-		status:      as red-handle! values + odbc/stmt-field-rows-status
-		debug:            logic/get values + odbc/stmt-field-debug?
-
-		flatval:                    values + odbc/common-field-flat?
+		flatval:                    vstm + odbc/cmnfld-flat?
 		if TYPE_OF(flatval) = TYPE_NONE [
-			values:      object/get-values (as red-object! values + odbc/stmt-field-connection)
-			flatval:                values + odbc/common-field-flat?
-			if TYPE_OF(flatval) = TYPE_NONE [
-				values:  object/get-values (as red-object! values + odbc/dbc-field-environment)
-				flatval:            values + odbc/common-field-flat?
-			]
+			vcon: object/get-values as red-object! vstm + odbc/stmfld-connection
+			flatval:                vcon + odbc/cmnfld-flat?
+		]
+		if TYPE_OF(flatval) = TYPE_NONE [
+			venv: object/get-values as red-object! vcon + odbc/confld-environment
+			flatval:                venv + odbc/cmnfld-flat?
 		]
 		flat?: logic/get flatval
 
-		#if debug? = yes [print ["^-window:  "              window        lf]]
-		#if debug? = yes [print ["^-status:  " as byte-ptr! status/value  lf]]
+		columns:      as red-block! vstm + odbc/stmfld-columns
+		bookmarks:        logic/get vstm + odbc/stmfld-bookmarks?
+		window:         integer/get vstm + odbc/stmfld-window
+		fetched:     as red-handle! vstm + odbc/stmfld-rows-fetched
+		row-status:  as red-handle! vstm + odbc/stmfld-rows-status              #if debug? = yes [print ["^-row-status = " as byte-ptr! row-status/value lf]]
+		debug:            logic/get vstm + odbc/stmfld-debug?                   #if debug? = yes [print ["^-window = " window lf]]
 
-		rowset:    block/push-only* window
-		cols:     (block/rs-length? columns) / odbc/col-field-fields
-		sym:       symbol/resolve orientation/symbol
-
-		#if debug? = yes [print ["^-rowset:  "              rowset        lf]]
-		#if debug? = yes [print ["^-cols:    "              cols          lf]]
-		#if debug? = yes [print ["^-sym:     "              sym           lf]]
+		rowset:    block/push-only* window                                      #if debug? = yes [print ["^-rowset = " rowset lf]]
+		cols:     (block/rs-length? columns) / odbc/colfld-fields               #if debug? = yes [print ["^-cols = " cols lf]]
+		sym:       symbol/resolve orientation/symbol                            #if debug? = yes [print ["^-sym = " sym lf]]
 
 		orient:    case [
 			sym = odbc/_all  [sql/fetch-next]
@@ -2257,16 +2240,12 @@ odbc: context [
 			sym = odbc/_next [sql/fetch-next]
 			sym = odbc/_tail [sql/fetch-last]
 		]
-
-		#if debug? = yes [print ["^-orient:  "              orient        lf]]
-		#if debug? = yes [print ["^-offset:  "              offset        lf]]
-
+																				#if debug? = yes [print ["^-orient = " orient lf]]
+																				#if debug? = yes [print ["^-offset = " offset lf]]
 		while [true] [
-			ODBC_RESULT sql/SQLFetchScroll hstmt/value orient offset
+			ODBC_RESULT sql/SQLFetchScroll hstm/value orient offset             #if debug? = yes [print ["^-SQLFetchScroll " rc lf]]
 
-			#if debug? = yes [print ["^-SQLFetchScroll " rc lf]]
-
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 			if ODBC_NO_DATA [
 				break
@@ -2275,56 +2254,55 @@ odbc: context [
 				TO_ERROR(script invalid-arg) statement
 			]]
 			if any [ODBC_ERROR ODBC_EXECUTING] [fire [
-				TO_ERROR(script bad-bad) odbc/__odbc
-				as red-block! (object/get-values statement) + odbc/common-field-errors
+				TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 			]]
 
-			rows: as int-ptr! fetched/value
+			int-ptr: as int-ptr! fetched/value
+			rows:    int-ptr/value                                              #if debug? = yes [print ["^-fetched = " as byte-ptr! fetched/value " => " rows " = rows " lf]]
 
-			#if debug? = yes [print ["^-fetched: " as byte-ptr! fetched/value " (" rows/value " rows) " lf]]
-
-			if debug [
-				c: 0
+			if debug [                                                          ;-- NOTE: not compile-time debugging here
+				col: 0
 				loop cols [
-					offset: c * odbc/col-field-fields
-					c: c + 1
-					buffer:  as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
-					buflen:     integer/get block/rs-abs-at columns offset + odbc/col-field-buffer-len
-					odbc/print-buffer as byte-ptr! buffer/value buflen * rows/value
+					offset: col * odbc/colfld-fields
+					col: col + 1
+					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
+					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-buffer-len
+
+					col-buf: as byte-ptr! col-bufptr/value
+					odbc/print-buffer col-buf col-slotlen * rows
 				]
 			]
 
-			r: 0
-			loop rows/value [
-				row: either flat? [
+			row: 0
+			loop rows [
+				rowblk: either flat? [
 					rowset
 				][
 					block/make-in rowset cols
 				]
 
-				c: 0
+				col: 0
 				loop cols [
-					offset: c * odbc/col-field-fields
-					c: c + 1
+					offset: col * odbc/colfld-fields
+					col: col + 1
 
-					sql-type:   integer/get block/rs-abs-at columns offset + odbc/col-field-sql-type
-					c-type:     integer/get block/rs-abs-at columns offset + odbc/col-field-c-type
-					col-size:   integer/get block/rs-abs-at columns offset + odbc/col-field-col-size
-					nullable:   integer/get block/rs-abs-at columns offset + odbc/col-field-nullable
-					digits:     integer/get block/rs-abs-at columns offset + odbc/col-field-digits
+					sql-type:       integer/get block/rs-abs-at columns offset + odbc/colfld-sql-type
+					c-type:         integer/get block/rs-abs-at columns offset + odbc/colfld-c-type
+					col-size:       integer/get block/rs-abs-at columns offset + odbc/colfld-col-size
+					digits:         integer/get block/rs-abs-at columns offset + odbc/colfld-digits
+					nullable:       integer/get block/rs-abs-at columns offset + odbc/colfld-nullable
+					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
+					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-buffer-len
+					len-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-strlen-ind
 
-					buffer:  as red-handle! block/rs-abs-at columns offset + odbc/col-field-buffer
-					buflen:     integer/get block/rs-abs-at columns offset + odbc/col-field-buffer-len
-					strlen:  as red-handle! block/rs-abs-at columns offset + odbc/col-field-strlen-ind
+					col-buf:     as byte-ptr! col-bufptr/value
+					col-slot:    col-buf + (row * col-slotlen)
 
-					bufrow:  as byte-ptr! buffer/value
-					bufrow:  bufrow + (r * buflen)
+					len-buf:     as int-ptr! len-bufptr/value
+					len-slot:    len-buf + row
 
-					length:   as int-ptr! strlen/value
-					length: length + r
-
-					if sql/null-data = length/value [
-						none/make-in row                ;-- continue early with NONE value
+					if sql/null-data = len-slot/value [
+						none/make-in rowblk                                     ;-- continue early with NONE value
 						continue
 					]
 
@@ -2334,70 +2312,70 @@ odbc: context [
 							sql-type = sql/longvarchar
 							sql-type = sql/longvarbinary
 						][
-							word/push-in odbc/_deferred row
+							word/push-in odbc/_deferred rowblk
 						]
 						any [
 							sql-type = sql/wvarchar
 							sql-type = sql/wchar
 						][
-							string/load-in as c-string! bufrow length/value >> 1 row UTF-16LE
+							string/load-in as c-string! col-slot len-slot/value >> 1 rowblk UTF-16LE
 						]
 						any [
 							sql-type = sql/varchar
 							sql-type = sql/char
 						][
-							string/load-in as c-string! bufrow length/value >> 1 row UTF-16LE
+							string/load-in as c-string! col-slot len-slot/value >> 1 rowblk UTF-16LE
 						]
 						any [
 							sql-type = sql/decimal
 							sql-type = sql/numeric
 						][
-							set-type as cell! string/load-in as c-string! bufrow length/value row UTF-8 TYPE_REF
+							set-type as cell! string/load-in as c-string! col-slot len-slot/value rowblk UTF-8 TYPE_REF
 						]
 						any [
 							sql-type = sql/smallint
 							sql-type = sql/integer
 						][
-							int-ptr: as int-ptr! bufrow
-							integer/make-in row int-ptr/value
+							int-ptr: as int-ptr! col-slot
+							integer/make-in rowblk int-ptr/value
 						]
 						any [
 							sql-type = sql/double
 							sql-type = sql/float
 							sql-type = sql/real
 						][
-							float-ptr: as struct! [int1 [integer!] int2 [integer!]] bufrow
-							float/make-in row float-ptr/int2 float-ptr/int1
+							float-ptr: as struct! [int1 [integer!] int2 [integer!]] col-slot
+							float/make-in rowblk float-ptr/int2 float-ptr/int1
 						]
 						sql-type = sql/bit [
-							logic/make-in row bufrow/value = #"^(01)"
+							logic/make-in rowblk col-slot/value = #"^(01)"
 						]
 						sql-type = sql/tinyint [
-							int-ptr: as int-ptr! bufrow
-							integer/make-in row int-ptr/value
+							int-ptr: as int-ptr! col-slot
+							integer/make-in rowblk int-ptr/value
 						]
 						sql-type = sql/bigint [
-							string/load-in as c-string! bufrow length/value row UTF-8
+							string/load-in as c-string! col-slot len-slot/value rowblk UTF-8
 						]
 						any [
 							c-type = sql/c-varbookmark
 							sql-type = sql/varbinary
 							sql-type = sql/binary
 						][
-							binary/load-in bufrow length/value row
+							binary/load-in col-slot len-slot/value rowblk
 						]
 						sql-type = sql/type-date [
-							dt: as sql-date! bufrow
+							dt: as sql-date! col-slot
 
 							d: 0 and 0001FFFFh or ((dt/year|month and 0000FFFFh      )         << 17)
 							d: d and FFFF0FFFh or ((dt/year|month and FFFF0000h >> 16) and 0Fh << 12)
 						;   d: d and FFFFF07Fh or ((dt/day|pad    and 0000FFFFh      ) and 1Fh <<  7)
 							d: d and FFFFF07Fh or ((as integer! dt/daylo)              and 1Fh <<  7)
 
-							date/make-in row d 0 0
+							date/make-in rowblk d 0 0
 						]
 						sql-type = sql/type-time [
-							tm: as sql-time! bufrow
+							tm: as sql-time! col-slot
 
 							t: (3600.0 * as float! tm/hour|minute and 0000FFFFh      )
 							 + (  60.0 * as float! tm/hour|minute and FFFF0000h >> 16)
@@ -2407,10 +2385,10 @@ odbc: context [
 
 							tim: as struct! [lo [integer!] hi [integer!]] as byte-ptr! :t
 
-							time/make-in row tim/hi tim/lo
+							time/make-in rowblk tim/hi tim/lo
 						]
 						sql-type = sql/type-timestamp [
-							ts: as sql-timestamp! bufrow
+							ts: as sql-timestamp! col-slot
 
 							d: 0 and 0001FFFFh or ((ts/year|month and 0000FFFFh      )         << 17)
 							d: d and FFFF0FFFh or ((ts/year|month and FFFF0000h >> 16) and 0Fh << 12)
@@ -2424,7 +2402,7 @@ odbc: context [
 
 							tim: as struct! [lo [integer!] hi [integer!]] as byte-ptr! :t
 
-							date/make-in row d tim/hi tim/lo
+							date/make-in rowblk d tim/hi tim/lo
 						]
 						any [
 							sql-type = sql/interval-year
@@ -2441,29 +2419,26 @@ odbc: context [
 							sql-type = sql/interval-hour-to-second
 							sql-type = sql/interval-minute-to-second
 						][
-							string/load-in as c-string! bufrow length/value row UTF-8
+							string/load-in as c-string! col-slot len-slot/value rowblk UTF-8
 						]
 						sql-type = sql/guid [
-							string/load-in as c-string! bufrow length/value row UTF-8
+							string/load-in as c-string! col-slot len-slot/value rowblk UTF-8
 						]
 						true [
-							#if debug? = yes [print ["^-DEFAULT sql-type handler" lf]]
-
-							string/load-in as c-string! bufrow length/value row UTF-16LE
+							string/load-in as c-string! col-slot len-slot/value rowblk UTF-16LE
+																				#if debug? = yes [print ["^-DEFAULT sql-type handler" lf]]
 						]
 					]
 
 				] ; loop cols
 
-				r: r + 1
-			] ; loop rows/value
+				row: row + 1
+			] ; loop rows
 
 			unless sym = odbc/_all [break]
 		]
 
-		SET_RETURN(rowset)
-
-		#if debug? = yes [print ["]" lf]]
+		SET_RETURN(rowset)                                                      #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2474,30 +2449,27 @@ odbc: context [
 		statement       [object!]
 		column          [integer!]
 		/local
-			buffer      [byte-ptr!]
-			buflen      [integer!]
 			c-type      [integer!]
 			columns     [red-block!]
 			debug       [logic!]
-			hstmt       [red-handle!]
-			length      [integer!]
+			hstm        [red-handle!]
 			offset      [integer!]
 			rc          [integer!]
 			redbin      [red-binary!]
 			redstr      [red-string!]
 			series      [series!]
 			sql-type    [integer!]
-			strlen      [int-ptr!]
-			values      [red-value!]
-	][
-		#if debug? = yes [print ["FETCH-VALUE [" lf]]
-
-		values:          object/get-values statement
-		hstmt:       as red-handle! values + odbc/common-field-handle
-
-		columns:      as red-block! values + odbc/stmt-field-columns
-		debug:            logic/get values + odbc/stmt-field-debug?
-		offset:     column - 1 * odbc/col-field-fields + odbc/col-field-sql-type
+			len-ptr     [int-ptr!]
+			val-buf     [byte-ptr!]
+			val-buflen  [integer!]
+			val-len     [integer!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["FETCH-VALUE [" lf]]
+		vstm:            object/get-values statement
+		hstm:        as red-handle! vstm + odbc/cmnfld-handle
+		columns:      as red-block! vstm + odbc/stmfld-columns
+		debug:            logic/get vstm + odbc/stmfld-debug?
+		offset:     column - 1 * odbc/colfld-fields + odbc/colfld-sql-type
 		sql-type:   integer/get block/rs-abs-at columns offset
 
 		case [
@@ -2511,78 +2483,75 @@ odbc: context [
 				c-type: sql/c-binary
 			]
 			true [
-				SET_RETURN(none-value)						;-- exit early with NONE
+				SET_RETURN(none-value)                                          ;-- exit early with NONE
 				exit
 			]
 		]
 
-		buflen: 4096
-	;	buffer: allocate                  buflen
-		buffer: sql/HeapAlloc odbc/heap 0 buflen
+		val-buflen:    4096                                                     #if debug? = yes [print ["^-HeapAlloc val-buf, " val-buflen " bytes"]]
+		val-buf:       sql/HeapAlloc odbc/heap 0 val-buflen                     #if debug? = yes [print [" @ " val-buf " " either val-buf <> null ["ok."] ["failed!"] lf]]
 
-		#if debug? = yes [print ["^-allocate buffer, " buflen " bytes @ " buffer " for column " column lf]]
-
-		strlen: declare int-ptr!
-		strlen/value: 0
-		length: 0
-		redbin: binary/load buffer 0
+		len-ptr:       declare int-ptr!
+		len-ptr/value: 0
+		val-len:       0
+		redbin:        binary/load val-buf 0                                    ;-- NOTE: we'll append to this one
 
 		until [
-			ODBC_RESULT sql/SQLGetData hstmt/value
-									   column
-									   c-type
-									   buffer
-									   buflen
-									   strlen
+			ODBC_RESULT sql/SQLGetData hstm/value
+			                           column
+			                           c-type
+			                           val-buf
+			                           val-buflen
+			                           len-ptr                                  #if debug? = yes [print ["^-SQLGetData " rc lf]]
 
-			#if debug? = yes [print ["^-SQLGetData " rc lf]]
+			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
-
-			unless any [ODBC_SUCCESS ODBC_INFO ODBC_NO_DATA] [
-			;	free                     buffer
-				sql/HeapFree odbc/heap 0 buffer
+			unless any [
+				ODBC_SUCCESS
+				ODBC_INFO
+				ODBC_NO_DATA
+			][
+																				#if debug? = yes [print ["^-HeapFree val-buf @ " val-buf]]
+				sql/HeapFree odbc/heap 0 val-buf                                #if debug? = yes [print [" ok." lf]]
 				fire [
-					TO_ERROR(script bad-bad) odbc/__odbc
-					as red-block! (object/get-values statement) + odbc/common-field-errors
+					TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 				]
 			]
 
-			length: case [
+			val-len: case [
 				ODBC_INFO [case [
-					c-type = sql/c-binary [buflen]
-					c-type = sql/c-wchar  [buflen - 2]  ;-- null-termination wchar
+					c-type = sql/c-binary [val-buflen]
+					c-type = sql/c-wchar  [val-buflen - 2]                      ;-- null-termination wchar
 				]]
-				ODBC_SUCCESS [strlen/value]
+				ODBC_SUCCESS [len-ptr/value]
 				true         [0]
 			]
 
 			if ODBC_SUCCEEDED [
 				if debug [
-					odbc/print-buffer buffer length
+					odbc/print-buffer val-buf val-len
 				]
 
-				binary/rs-append redbin buffer length
+				binary/rs-append redbin val-buf val-len
 			]
 
 			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
 		]
-
-	;	free                     buffer
-		sql/HeapFree odbc/heap 0 buffer
+																				#if debug? = yes [print ["^-HeapFree val-buf @ " val-buf]]
+		sql/HeapFree odbc/heap 0 val-buf                                        #if debug? = yes [print [" ok." lf]]
 
 		either sql-type <> sql/longvarbinary [
-			redstr: as red-string! as red-value! redbin
-			set-type as red-value! redstr TYPE_STRING
-			series: GET_BUFFER(redstr)
-			series/flags: series/flags and flag-unit-mask or UCS-2
+			redstr:     as red-string! as red-value! redbin
+			set-type    as red-value! redstr TYPE_STRING
+
+			series:         GET_BUFFER(redstr)
+			series/flags:   series/flags and flag-unit-mask or UCS-2
 
 			SET_RETURN(redstr)
 		][
 			SET_RETURN(redbin)
 		]
-
-		#if debug? = yes [print ["]" lf]]
+		                                                                        #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2592,14 +2561,14 @@ odbc: context [
 	free-statement: routine [
 		statement       [object!]
 		/local
-			hstmt       [red-handle!]
+			hstm        [red-handle!]
 			option      [integer!]
 			rc          [integer!]
 			step        [integer!]
-	][
-		#if debug? = yes [print ["FREE-STATEMENT [" lf]]
-
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["FREE-STATEMENT [" lf]]
+		vstm:   object/get-values statement
+		hstm:   as red-handle! vstm + odbc/cmnfld-handle
 
 		step: 0
 		loop 3 [
@@ -2610,19 +2579,15 @@ odbc: context [
 				3 [sql/reset-params]
 			]
 
-			ODBC_RESULT sql/SQLFreeStmt hstmt/value option
+			ODBC_RESULT sql/SQLFreeStmt hstm/value option                       #if debug? = yes [print ["^-SQLFreeStmt " rc lf]]
 
-			#if debug? = yes [print ["^-SQLFreeStmt " rc lf]]
-
-			ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
+			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
 			unless ODBC_SUCCEEDED [fire [
-				TO_ERROR(script bad-bad) odbc/__odbc
-				as red-block! (object/get-values statement) + odbc/common-field-errors
+				TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 			]]
 		]
-
-		#if debug? = yes [print ["]" lf]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2632,22 +2597,29 @@ odbc: context [
 	close-statement: routine [
 		statement       [object!]
 		/local
-			hstmt       [red-handle!]
+			fetched     [byte-ptr!]
+			hstm        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["CLOSE-STATEMENT [" lf]]
+			redhnd      [red-handle!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["CLOSE-STATEMENT [" lf]]
+		vstm:       object/get-values statement
+		hstm:       as red-handle! vstm + odbc/cmnfld-handle
+		redhnd:     as red-handle! vstm + odbc/stmfld-rows-fetched
 
-		hstmt: as red-handle! (object/get-values statement) + odbc/common-field-handle
+		fetched:    as byte-ptr! redhnd/value
+		if fetched <> null [                                                    #if debug? = yes [print ["^-HeapFree fetched @ " fetched]]
+			sql/HeapFree odbc/heap 0 fetched                                    #if debug? = yes [print [" ok." lf]]
+		]
 
-		ODBC_RESULT sql/SQLFreeHandle sql/handle-stmt hstmt/value
+		ODBC_RESULT sql/SQLFreeHandle sql/handle-stmt hstm/value                #if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
 
-		#if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
-		ODBC_DIAGNOSIS(sql/handle-stmt hstmt/value statement)
-
-		unless ODBC_SUCCEEDED [fire [TO_ERROR(access cannot-close) statement]]
-
-		#if debug? = yes [print ["]" lf]]
+		unless ODBC_SUCCEEDED [fire [
+			TO_ERROR(access cannot-close) statement
+		]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2657,30 +2629,29 @@ odbc: context [
 	close-connection: routine [
 		connection      [object!]
 		/local
-			hdbc        [red-handle!]
+			hcon        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["CLOSE-CONNECTION [" lf]]
+			vcon        [red-value!]
+	][                                                                          #if debug? = yes [print ["CLOSE-CONNECTION [" lf]]
+		vcon: object/get-values connection
+		hcon: as red-handle! vcon + odbc/cmnfld-handle
 
-		hdbc: as red-handle! (object/get-values connection) + odbc/common-field-handle
+		ODBC_RESULT sql/SQLDisconnect hcon/value                                #if debug? = yes [print ["^-SQLDisconnect " rc lf]]
 
-		ODBC_RESULT sql/SQLDisconnect hdbc/value
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
-		#if debug? = yes [print ["^-SQLDisconnect " rc lf]]
+		unless ODBC_SUCCEEDED [fire [
+			TO_ERROR(access cannot-close) connection
+		]]
 
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
+		ODBC_RESULT sql/SQLFreeHandle sql/handle-dbc hcon/value                 #if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
 
-		unless ODBC_SUCCEEDED [fire [TO_ERROR(access cannot-close) connection]]
+		ODBC_DIAGNOSIS(sql/handle-dbc hcon/value connection)
 
-		ODBC_RESULT sql/SQLFreeHandle sql/handle-dbc hdbc/value
-
-		#if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
-
-		ODBC_DIAGNOSIS(sql/handle-dbc hdbc/value connection)
-
-		unless ODBC_SUCCEEDED [fire [TO_ERROR(access cannot-close) connection]]
-
-		#if debug? = yes [print ["]" lf]]
+		unless ODBC_SUCCEEDED [fire [
+			TO_ERROR(access cannot-close) connection
+		]]
+																				#if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2692,22 +2663,25 @@ odbc: context [
 		/local
 			henv        [red-handle!]
 			rc          [integer!]
-	][
-		#if debug? = yes [print ["CLOSE-ENVIRONMENT [" lf]]
+			venv        [red-value!]
+	][                                                                          #if debug? = yes [print ["CLOSE-ENVIRONMENT [" lf]]
+		venv: object/get-values environment
+		henv: as red-handle! venv + odbc/cmnfld-handle
 
-		henv: as red-handle! (object/get-values environment) + odbc/common-field-handle
-
-		ODBC_RESULT sql/SQLFreeHandle sql/handle-env henv/value
-
-		#if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
+		ODBC_RESULT sql/SQLFreeHandle sql/handle-env henv/value                 #if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
 
 		ODBC_DIAGNOSIS(sql/handle-env henv/value environment)
 
-		unless ODBC_SUCCEEDED [fire [TO_ERROR(access cannot-close) environment]]
+		unless ODBC_SUCCEEDED [fire [
+			TO_ERROR(access cannot-close) environment
+		]]
 
-		#if debug? = yes [print ["]" lf]]
+		if odbc/heap <> null [
+			sql/HeapDestroy odbc/heap
+			odbc/heap: null
+		]
 
-		SET_RETURN(none-value)
+		SET_RETURN(none-value)                                                  #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -2754,16 +2728,13 @@ odbc: context [
 
 	init-odbc: func [
 		"Init ODBC environment."
-	][
-		if debug-odbc? [print "init-odbc"]
-
+	][                                                                          if debug-odbc? [print "init-odbc"]
 		all [
 			zero? environment/count
 			open-environment environment
-			environment/count: environment/count + 1
+			set-quiet environment 'count environment/count + 1
 		]
-
-		if debug-odbc? [print ["^-init-odbc:" environment/count]]
+																				if debug-odbc? [print ["^-init-odbc:" environment/count]]
 		exit
 	]
 
@@ -2773,17 +2744,14 @@ odbc: context [
 
 	free-odbc: func [
 		"Free environment."
-	][
-		if debug-odbc? [print "free-odbc"]
-
+	][                                                                          if debug-odbc? [print "free-odbc"]
 		unless zero? environment/count [
 			environment/count: environment/count - 1
 		]
 		if zero? environment/count [
 			close-environment environment
 		]
-
-		if debug-odbc? [print ["^-free-odbc:" environment/count]]
+																				if debug-odbc? [print ["^-free-odbc:" environment/count]]
 		exit
 	]
 
@@ -2793,19 +2761,17 @@ odbc: context [
 
 	describe-result: function [
 		statement [object!]
-	][
-		if debug-odbc? [print "describe-result"]
-
-		statement/length: affected-rows statement
+	][                                                                          if debug-odbc? [print "describe-result"]
+		set-quiet in statement 'length affected-rows statement
 
 		if zero? cols: count-columns statement [
-			return statement/length                     ;-- exit early with # rows
+			return statement/length                                             ;-- exit early with # rows
 		]
 
-		statement/columns: columns: bind-columns statement cols
+		set-quiet in statement 'columns columns: bind-columns statement cols
 
 		;-- translate and instert column names as word
-		;	in description block, return the words only
+		;   in description block, return the words only
 
 		new-line/all collect [until [
 			change* columns keep any [
@@ -2813,7 +2779,7 @@ odbc: context [
 				column
 			]
 			new-line columns on
-			tail?* columns: skip* columns 10            ;-- odbc/col-field-fields
+			tail?* columns: skip* columns 10                                    ;-- odbc/colfld-fields
 		]] off
 	]
 
@@ -2850,16 +2816,21 @@ odbc: context [
 	;   Returns DECIMAL or NUMERIC if the a LOAD-able
 	;   or string otherwise.
 
-	return-columns: function [statement rows /local row] [
-		if debug-odbc? [print "return-columns"]
+	return-columns: function [
+		statement       [object!]
+		rows            [block!]
+		/local
+			row
+	][                                                                          if debug-odbc? [print "return-columns"]
 
-		statement/position: either statement/access = 'forward [0] [            ;-- or 24000 invalid cursor state if cursor not open
-			pick-attribute statement 14                 ;-- sql/attr-row-number
-		]
+		set-quiet in statement 'position
+		          either statement/access = 'forward [0] [                      ;-- or 24000 invalid cursor state if cursor not open
+		              pick-attribute statement 14                               ;-- sql/attr-row-number
+		          ]
 
 		all [
 			statement/cursor
-			statement/cursor/position: 0
+			set-quiet in statement/cursor 'position 0
 		]
 
 		either first trim reduce [
@@ -2872,7 +2843,7 @@ odbc: context [
 				change* rows any [attempt [load value: to string! value] value]
 			]]
 
-			columns: (length?* statement/columns) / 10  ;-- odbc/col-field-fields
+			columns: (length?* statement/columns) / 10                          ;-- odbc/colfld-fields
 
 			new-line/skip/all head* rows on columns
 		][
@@ -2890,7 +2861,7 @@ odbc: context [
 	;
 
 	environment-attrs: [
-	;	00201 "connection-pooling"
+	;   00201 "connection-pooling"
 		00202 "cp-match" opt [
 			00000000h strict
 			00000001h relaxed
@@ -2912,18 +2883,18 @@ odbc: context [
 			00000000h read-write
 			00000001h read-only
 		]
-	;	00119 "async-dbc-event"
-	;	00117 "async-dbc-functions-enable" logic!
-	;	????? "async-dbc-pcallback"
-	;	????? "async-dbc-pcontext"
+	;   00119 "async-dbc-event"
+	;   00117 "async-dbc-functions-enable" logic!
+	;   ????? "async-dbc-pcallback"
+	;   ????? "async-dbc-pcontext"
 		00004 "async-enable" logic!
 		10001 "auto-ipd" logic!
 		00102 "autocommit" logic!
 		01209 "connection-dead" logic!
 		00113 "connection-timeout"
 		00109 "current-catalog"
-	;	????? "dbc-info-token"
-	;	01207 "enlist-in-dtc"
+	;   ????? "dbc-info-token"
+	;   01207 "enlist-in-dtc"
 		00103 "login-timeout"
 		10014 "metadata-id" logic!
 		00110 "odbc-cursors" opt [
@@ -2943,8 +2914,8 @@ odbc: context [
 			00000004h repeatable-read
 			00000008h serializable
 		]
-	;	00114 "disconnect-behavior"
-	;	01208 "enlist-in-xa"
+	;   00114 "disconnect-behavior"
+	;   01208 "enlist-in-xa"
 	]
 
 
@@ -2958,20 +2929,20 @@ odbc: context [
 		00000 "max-driver-connections"
 		00001 "max-concurrent-activities"
 		00002 "data-source-name"
-	;   00003 "driver-hdbc"                             ;-- FIXME: support this?
-	;   00004 "driver-henv"                             ;-- FIXME: support this?
-	;   00005 "driver-hstmt"                            ;-- FIXME: support this?
+	;   00003 "driver-hdbc"                                                     ;-- FIXME: support this?
+	;   00004 "driver-henv"                                                     ;-- FIXME: support this?
+	;   00005 "driver-hstmt"                                                    ;-- FIXME: support this?
 		00006 "driver-name"
 		00007 "driver-ver"
-	;   00008 "fetch-direction"                         ;-- deprecated in 3.x
-	;   00009 "odbc-api-conformance"                    ;-- deprecated in 3.x
+	;   00008 "fetch-direction"                                                 ;-- deprecated in 3.x
+	;   00009 "odbc-api-conformance"                                            ;-- deprecated in 3.x
 		00010 "odbc-ver"
 		00011 "row-updates" ?
-	;   00012 "odbc-sag-cli-conformance"                ;-- FIXME: support this?
+	;   00012 "odbc-sag-cli-conformance"                                        ;-- FIXME: support this?
 		00013 "server-name"
 		00014 "search-pattern-escape"
-	;   00015 "odbc-sql-conformance"                    ;-- deprecated in 3.x
-	;   00016                                           ;-- FIXME: undefined?!
+	;   00015 "odbc-sql-conformance"                                            ;-- deprecated in 3.x
+	;   00016                                                                   ;-- FIXME: undefined?!
 		00017 "dbms-name"
 		00018 "dbms-ver"
 		00019 "accessible-tables" ?
@@ -3019,7 +2990,7 @@ odbc: context [
 		00040 "procedure-term"
 		00041 "catalog-name-separator"
 		00042 "catalog-term"
-	;   00043 "scroll-concurrency"                      ;-- deprecated in 3.x
+	;   00043 "scroll-concurrency"                                              ;-- deprecated in 3.x
 		00044 "scroll-options" any [
 			00000001h forward-only
 			00000002h keyset-driven
@@ -3203,11 +3174,11 @@ odbc: context [
 			00000000h null
 			00000001h non-null
 		]
-	;   00076 "driver-hlib"                             ;-- FIXME: support this?
+	;   00076 "driver-hlib"                                                     ;-- FIXME: support this?
 		00077 "driver-odbc-ver"
-	;   00078 "lock-types"                              ;-- deprecated in 3.x
-	;   00079 "pos-operations"                          ;-- deprecated in 3.x
-	;   00080 "positioned-statements"                   ;-- deprecated in 3.x
+	;   00078 "lock-types"                                                      ;-- deprecated in 3.x
+	;   00079 "pos-operations"                                                  ;-- deprecated in 3.x
+	;   00080 "positioned-statements"                                           ;-- deprecated in 3.x
 		00081 "getdata-extensions" any [
 			00000001h any-column
 			00000002h any-order
@@ -3225,7 +3196,7 @@ odbc: context [
 			00000020h other-hstmt
 			00000040h scroll
 		]
-	;   00083 "static-sensitivity"                      ;-- deprecated in 3.x
+	;   00083 "static-sensitivity"                                              ;-- deprecated in 3.x
 		00084 "file-usage" any [
 			00000001h table
 			00000002h catalog
@@ -3395,11 +3366,11 @@ odbc: context [
 			00000004h select-proc
 			00000008h row-count-proc
 		]
-	;   00122 "convert-wchar"                                               ;-- FIXME: support this?
-	;   00123 "convert-interval-day-time"   any (supported-conversions)     ;-- FIXME: support this?
-	;   00124 "convert-interval-year-month" any (supported-conversions)     ;-- FIXME: support this?
-	;   00125 "convert-wlongvarchar"                                        ;-- FIXME: support this?
-	;   00126 "convert-wvarchar"                                            ;-- FIXME: support this?
+	;   00122 "convert-wchar"                                                   ;-- FIXME: support this?
+	;   00123 "convert-interval-day-time"   any (supported-conversions)         ;-- FIXME: support this?
+	;   00124 "convert-interval-year-month" any (supported-conversions)         ;-- FIXME: support this?
+	;   00125 "convert-wlongvarchar"                                            ;-- FIXME: support this?
+	;   00126 "convert-wvarchar"                                                ;-- FIXME: support this?
 		00127 "create-assertion" any [
 			00000001h create-assertion
 			00000010h constraint-initially-deferred
@@ -3456,7 +3427,7 @@ odbc: context [
 			00000004h cascaded
 			00000008h local
 		]
-	;   00135 "driver-hdesc"                            ;-- FIXME: support this?
+	;   00135 "driver-hdesc"                                                    ;-- FIXME: support this?
 		00136 "drop-assertion" any [
 			00000001h drop-assertion
 		]
@@ -3676,7 +3647,7 @@ odbc: context [
 			00000004h coalesce
 			00000008h nullif
 		]
-	;   00166 "standard-cli-conformance" any [          ;-- FIXME: support this?
+	;   00166 "standard-cli-conformance" any [                                  ;-- FIXME: support this?
 	;       00000001h xopen-cli-version1
 	;       00000002h iso92-cli
 	;   ]
@@ -3715,17 +3686,17 @@ odbc: context [
 			00000002h insert-searched
 			00000004h select-into
 		]
-	;   00173 "convert-guid" any (                      ;-- FIXME: support this?
+	;   00173 "convert-guid" any (                                              ;-- FIXME: support this?
 	;       supported-conversions
 	;   )
-	;   00174 "schema-inference"                        ;-- TODO: odbc 4.0
-	;   00175 "binary-functions"                        ;-- TODO: odbc 4.0
-	;   00176 "iso-string-functions"                    ;-- TODO: odbc 4.0
-	;   00177 "iso-binary-functions"                    ;-- TODO: odbc 4.0
-	;   00178 "limit-escape-clause"                     ;-- TODO: odbc 4.0
-	;   00179 "native-escape-clause"                    ;-- TODO: odbc 4.0
-	;   00180 "return-escape-clause"                    ;-- TODO: odbc 4.0
-	;   00181 "format-escape-clause"                    ;-- TODO: odbc 4.0
+	;   00174 "schema-inference"                                                ;-- TODO: odbc 4.0
+	;   00175 "binary-functions"                                                ;-- TODO: odbc 4.0
+	;   00176 "iso-string-functions"                                            ;-- TODO: odbc 4.0
+	;   00177 "iso-binary-functions"                                            ;-- TODO: odbc 4.0
+	;   00178 "limit-escape-clause"                                             ;-- TODO: odbc 4.0
+	;   00179 "native-escape-clause"                                            ;-- TODO: odbc 4.0
+	;   00180 "return-escape-clause"                                            ;-- TODO: odbc 4.0
+	;   00181 "format-escape-clause"                                            ;-- TODO: odbc 4.0
 	;   10000 "xopen-cli-year"
 	;   10001 "cursor-sensitivity" opt [
 	;       00000000h unspecified
@@ -3760,10 +3731,10 @@ odbc: context [
 		10011 "app-param-desc"
 		10010 "app-row-desc"
 		00004 "async-enable" logic!
-	;	      "async-stmt-event"
-	;	      "async-stmt-functions"
-	;	      "async-stmt-pcallback"
-	;	      "async-stmt-pcontext"
+	;         "async-stmt-event"
+	;         "async-stmt-functions"
+	;         "async-stmt-pcallback"
+	;         "async-stmt-pcontext"
 		00007 "concurrency" opt [
 			00000001h read-only
 			00000002h lock
@@ -3826,10 +3797,10 @@ odbc: context [
 		"Collects entity information/state."
 		entity          [object!]       "environment, connection or statement"
 		/infos
-		/local value name
-	][
-		if debug-odbc? [print "about-entity"]
-
+		/local
+			name
+			value
+	][                                                                          if debug-odbc? [print "about-entity"]
 		spec: switch entity/type [
 			environment [environment-attrs]
 			connection  [get pick* [connection-infos connection-attrs] infos]
@@ -3839,9 +3810,7 @@ odbc: context [
 		make map! sort/skip parse spec [
 			collect some [
 				set info integer!
-				set name string! (
-					if debug-odbc? [print ["info:" info name]]
-
+				set name string! (                                              if debug-odbc? [print ["info:" info name]]
 					info: either infos [
 						pick-information entity info
 					][
@@ -3883,9 +3852,7 @@ odbc: context [
 			desc
 			attrs
 			attr
-	][
-		if debug-odbc? [print "scheme/drivers"]
-
+	][                                                                          if debug-odbc? [print "scheme/drivers"]
 		init-odbc
 		drivers: collect [foreach [desc attrs] list-drivers environment [
 			attrs: split head* remove back* tail* attrs #"^@"
@@ -3905,9 +3872,7 @@ odbc: context [
 		"Returns info on ODBC data sources."
 		/user       "user data sources only"
 		/system     "system data sources only"
-	][
-		if debug-odbc? [print "scheme/sources"]
-
+	][                                                                          if debug-odbc? [print "scheme/sources"]
 		all [user system cause-error 'script 'bad-refines []]
 
 		init-odbc
@@ -3929,9 +3894,9 @@ odbc: context [
 		connection      [object!]
 		auto?           [logic!]
 	][
-		set-connection connection 102                   ;-- sql/attr-autocommit
-								  make integer! auto?   ;   sql/autocommit-on, -off
-								  FFFBh                 ;   sql/is-uinteger
+		set-connection connection 102                                           ;-- sql/attr-autocommit
+		                          make integer! auto?                           ;   sql/autocommit-on, -off
+		                          FFFBh                                         ;   sql/is-uinteger
 	]
 
 
@@ -3948,9 +3913,9 @@ odbc: context [
 
 		access: select [forward 0 keyset 1 dynamic 2 static 3 default 0] access
 
-		set-statement statement 6                       ;-- sql/attr-cursor-type
-								access                  ;   sql/cursor-*
-								FFFBh                   ;   sql/is-uinteger
+		set-statement statement 6                                               ;-- sql/attr-cursor-type
+		                        access                                          ;   sql/cursor-*
+		                        FFFBh                                           ;   sql/is-uinteger
 	]
 
 
@@ -3963,9 +3928,9 @@ odbc: context [
 	][
 		bookmarks?: pick* [2 0] bookmarks?
 
-		set-statement statement 12                      ;-- sql/attr-use-bookmarks
-								bookmarks?              ;   sql/ub-variable, sql/ub-off
-								FFFBh                   ;   sql/is-uinteger
+		set-statement statement 12                                              ;-- sql/attr-use-bookmarks
+		                        bookmarks?                                      ;   sql/ub-variable, sql/ub-off
+		                        FFFBh                                           ;   sql/is-uinteger
 	]
 
 
@@ -3976,9 +3941,9 @@ odbc: context [
 		statement       [object!]
 		timeout         [integer!]
 	][
-		set-statement statement 0                       ;-- sql/attr-query-timeout
-								timeout                 ;
-								FFFBh                   ;   sql/is-uinteger
+		set-statement statement 0                                               ;-- sql/attr-query-timeout
+		                        timeout                                         ;
+		                        FFFBh                                           ;   sql/is-uinteger
 	]
 
 
@@ -4000,11 +3965,8 @@ odbc: context [
 		port            [port!] "connection string or connection or statement port"
 	][
 		case [
-			none? port/state [
-				if debug-odbc? [print "actor/open: connection"]
-
+			none? port/state [                                                  if debug-odbc? [print "actor/open: connection"]
 				init-odbc
-
 				connection: make connection-proto []
 
 				open-connection environment connection any [
@@ -4012,14 +3974,12 @@ odbc: context [
 					rejoin ["DSN=" port/spec/host]
 				]
 
-				connection/environment: environment     ;-- linkage only after success
-				append environment/connections connection
-
+				append environment/connections connection                       ;-- linkage only after success
+				set-quiet in connection 'environment environment
 				port/state: connection
-				connection/port: port
+				set-quiet in connection 'port port                              ;-- return port
 			]
-			all [port/state port/state/type = 'connection] [
-				if debug-odbc? [print "actor/open: statement"]
+			all [port/state port/state/type = 'connection] [                    if debug-odbc? [print "actor/open: statement"]
 
 				connection: port/state
 				statement:  make statement-proto []
@@ -4027,28 +3987,25 @@ odbc: context [
 
 				open-statement connection statement
 
-				statement/connection: connection        ;-- linkage only after success
-				append connection/statements statement
-
+				append connection/statements statement                          ;-- linkage only after success
+				set-quiet in statement 'connection connection
 				port/state: statement
-				statement/port: port
+				set-quiet in statement 'port port                               ;-- return port
 			]
-			all [port/state port/state/type = 'statement] [
-				if debug-odbc? [print "actor/open: cursor"]
+			all [port/state port/state/type = 'statement] [                     if debug-odbc? [print "actor/open: cursor"]
 
 				statement:  port/state
 
-				if statement/cursor [                   ;-- only one cursor per statement
+				if statement/cursor [                                           ;-- only one cursor per statement
 					cause-error 'access 'no-port-action []
 				]
 				cursor:     make cursor-proto []
 				port:       make port [scheme: 'odbc]
 
-				cursor/statement: statement             ;-- linkage only after success
-				statement/cursor: cursor
-
+				set-quiet in statement 'cursor cursor                           ;-- linkage only after success
+				set-quiet in cursor 'statement statement
 				port/state:  cursor
-				cursor/port: port
+				set-quiet in cursor 'port port                                  ;-- return port
 			]
 			/else [
 				cause-error 'access 'no-port-action []
@@ -4059,15 +4016,13 @@ odbc: context [
 
 	;------------------------------------------ open? --
 	;
-	;	It seems that SQL_ATTR_CONNECTION_DEAD:1209
+	;   It seems that SQL_ATTR_CONNECTION_DEAD:1209
 	;   support isn't guaranteed, can't use
 
 	open?: func [
 		"Returns if connection is open."
 		port            [port!] "connection"
-	][
-		if debug-odbc? [print "OPEN? actor"]
-
+	][                                                                          if debug-odbc? [print "OPEN? actor"]
 		to logic! port/state
 	]
 
@@ -4075,9 +4030,7 @@ odbc: context [
 	;--------------------------------------- dispatch --
 	;
 
-	dispatch: func [action port code] [
-		if debug-odbc? [print [uppercase form action "actor"]]
-
+	dispatch: func [action port code] [                                         if debug-odbc? [print [uppercase form action "actor"]]
 		unless open? port [
 			cause-error 'access 'not-open [port]
 		]
@@ -4105,8 +4058,8 @@ odbc: context [
 			prmset
 	][
 		freeing: [
-			free-parameters port/state                  ;-- all this freeing is architecturally required for
-			free-columns    port/state                  ;   a statement whicht is already prepared and bound
+			free-parameters port/state                                          ;-- all this freeing is architecturally required for
+			free-columns    port/state                                          ;   a statement whicht is already prepared and bound
 			free-statement  port/state
 		]
 
@@ -4136,32 +4089,31 @@ odbc: context [
 					|   'columns            4 string!?
 					|   'foreign 'keys      6 string!?
 					|   'special 'columns   ['unique | 'update | none! | change 'none (none)]
-											3 string!?
-											['row | 'transaction | 'session | none! | change 'none (none)]
-											[   logic!
-											|   change ['yes | 'true  | 'on ] (on)
-											|   change ['no  | 'false | 'off] (off)
-											|   none!
-											|   change 'none (none)
-											]
+					                        3 string!?
+					                        ['row | 'transaction | 'session | none! | change 'none (none)]
+					                        [   logic!
+					                        |   change ['yes | 'true  | 'on ] (on)
+					                        |   change ['no  | 'false | 'off] (off)
+					                        |   none!
+					                        |   change 'none (none)
+					                        ]
 					|   'primary 'keys      3 string!?
 					|   'procedure 'columns 4 string!?
 					|   'procedures         3 string!?
 					|   'statistics         3 string!?
-											['all | 'unique | none! | change 'none (none)]
-														;-- TODO: SQL_QUICK vs. SQL_ENSURE not supported!
+					                        ['all | 'unique | none! | change 'none (none)]
+					                                                            ;-- TODO: SQL_QUICK vs. SQL_ENSURE not supported!
 					|   'table 'privileges  3 string!?
 					|   'tables             4 string!?
-					|   'types                          ;-- TODO: datatype arg not supported yet
+					|   'types                                                  ;-- TODO: datatype arg not supported yet
 					]
 					to end
 				][
 					do freeing
-
-					if part [port/state/window: length]                         ;-- insert/part shorthand
-
-					port/state/sql: none
-
+					if part [
+						set-quiet in port/state 'window length                  ;-- insert/part shorthand
+					]
+					set-quiet in port/state 'sql none
 					catalog-statement port/state catalog strict?
 					describe-result port/state
 				]
@@ -4172,20 +4124,18 @@ odbc: context [
 					to end
 				][
 					do freeing
-
-					if part [port/state/window: length]                         ;-- insert/part shorthand
-
+					if part [
+						set-quiet in port/state 'window length                  ;-- insert/part shorthand
+					]
 					string: first query: reduce compose [(query)]
-
 					unless same? port/state/sql string [                        ;-- prepare only new statement
 						prepare-statement port/state query
-						port/state/sql: string
+						set-quiet in port/state 'sql string
 					]
 
 					unless tail?* params: next* query [
 						unless block? first params [
-							insert*/only params take/part params length?* params
-																				;-- treat ["..." p1 p2] as ["..." [p1 p2]] prm array with only 1 elem
+							insert*/only params take/part params length?* params;-- treat ["..." p1 p2] as ["..." [p1 p2]] prm array with only 1 elem
 						]
 						foreach prmset params [unless block? prmset [           ;-- assert all prmsets are blocks
 							cause-error 'script 'expect-val ['block! type? prmset]
@@ -4204,7 +4154,7 @@ odbc: context [
 								]]
 							]]
 							unless any [
-								empty?  types               ;-- all rows in param col are #[none]
+								empty?  types                                   ;-- all rows in param col are #[none]
 								single? types
 							][
 								cause-error 'script 'not-same-type []
@@ -4244,14 +4194,14 @@ odbc: context [
 					string! [
 						port/state/catalog: sql
 					]
-				][	cause-error 'script 'invalid-arg [sql]]
+				][  cause-error 'script 'invalid-arg [sql]]
 			]
 			statement [
 				switch/default type?/word sql [
 					object! block! [foreach word words-of spec: make object! sql [
 						port/state/:word: spec/:word
 					]]
-				][	cause-error 'script 'invalid-arg [sql]]
+				][  cause-error 'script 'invalid-arg [sql]]
 			]
 			cursor [
 				switch type?/word sql [
@@ -4277,7 +4227,7 @@ odbc: context [
 			statement [
 				about-entity port/state
 			]
-			connection [make map! sort/skip compose [        ;-- NOTE: possible because no duplicate keys
+			connection [make map! sort/skip compose [                           ;-- NOTE: possible because no duplicate keys
 				(to block! about-entity/infos port/state)
 				(to block! about-entity       port/state)
 			] 2]
@@ -4326,8 +4276,8 @@ odbc: context [
 			statement [all [
 				more-results?   port/state
 
-				free-parameters port/state                  ;-- all this freeing is architecturally required for
-				free-columns    port/state                  ;   a statement whicht is already prepared and bound
+				free-parameters port/state                                      ;-- all this freeing is architecturally required for
+				free-columns    port/state                                      ;   a statement whicht is already prepared and bound
 
 				describe-result port/state
 			]]
@@ -4363,7 +4313,7 @@ odbc: context [
 			statement [
 				if any [word? column string? column] [
 					index: index?* find port/state/columns column
-					column: round/to/ceiling index / 10 1                       ;-- odbc/col-field-fields
+					column: round/to/ceiling index / 10 1                       ;-- odbc/colfld-fields
 				]
 				fetch-value port/state column
 			]
@@ -4427,7 +4377,7 @@ odbc: context [
 	][
 		dispatch 'head port [
 			statement [
-				rows: fetch-columns port/state 'head 0  ; ignored
+				rows: fetch-columns port/state 'head 0
 				return-columns port/state rows
 			]
 			cursor [
@@ -4505,7 +4455,7 @@ odbc: context [
 	][
 		dispatch 'tail port [
 			statement [
-				rows: fetch-columns port/state 'tail 0  ; ignored
+				rows: fetch-columns port/state 'tail 0
 				return-columns port/state rows
 			]
 			cursor [
@@ -4573,15 +4523,15 @@ odbc: context [
 
 				remove find port/state/connection/statements port/state
 
-				port/state:
-				port/state/connection: none
+				set-quiet in port/state 'connection none
+				port/state: none
 			]
 			cursor [
 				if debug-odbc? [print "actor/close: cursor"]
 
-				port/state:
-				port/state/statement:
-				port/state/statement/cursor: none
+				set-quiet in port/state/statement 'cursor none
+				set-quiet in port/state 'statement none
+				port/state: none
 			]
 		]
 
@@ -4601,5 +4551,5 @@ register-scheme make system/standard/scheme [
 	state:  odbc/environment
 ]
 
-unset 'odbc                                             ;-- do not pollute global context
+unset 'odbc                                                                     ;-- do not pollute global context
 
