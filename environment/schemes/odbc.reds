@@ -11,27 +11,16 @@ Red/System [
 
 	Windows [
 		#define ODBC_LIBRARY "odbc32.dll"
-		#define KERNEL_LIBRARY "kernel32.dll"
 	]
 	macOS [
 		#define ODBC_LIBRARY "odbc.dylib"
-		;define KERNEL_LIBRARY
 	]
 	#default [
 		#define ODBC_LIBRARY "libodbc.so.2"
-		;define KERNEL_LIBRARY
 	]
 
 ]
 
-
-sql_heap_entry!: alias struct! [
-	data          [byte-ptr!]
-	size          [integer!]
-	overhead      [byte!]
-	index         [byte!]
-	flags         [integer!]
-]
 
 sql-date!: alias struct! [
 	year|month    [integer!]
@@ -2264,70 +2253,6 @@ sql: context [
 	] ;-- enum
 
 
-	;######################################### kernel ##
-	;
-	; ██   ██ ███████  █████  ██████   █████  ██████  ██
-	; ██   ██ ██      ██   ██ ██   ██ ██   ██ ██   ██ ██
-	; ███████ █████   ███████ ██████  ███████ ██████  ██
-	; ██   ██ ██      ██   ██ ██      ██   ██ ██      ██
-	; ██   ██ ███████ ██   ██ ██      ██   ██ ██      ██
-	;
-
-	;--------------------------------- KERNEL_LIBRARY --
-	;
-
-	#import [KERNEL_LIBRARY stdcall [
-
-		GetProcessHeap: "GetProcessHeap" [
-			return:                 [byte-ptr!]
-		]
-
-		HeapAlloc: "HeapAlloc" [
-			heap                    [byte-ptr!]
-			flags                   [integer!]
-			bytes                   [integer!]
-			return:                 [byte-ptr!]
-		]
-
-		HeapCreate: "HeapCreate" [
-			options                 [integer!]
-			initial                 [integer!]
-			maximum                 [integer!]
-			return:                 [byte-ptr!]
-		]
-
-		HeapDestroy: "HeapDestroy" [
-			heap                    [byte-ptr!]
-			return:                 [integer!]
-		]
-
-		HeapFree: "HeapFree" [
-			heap                    [byte-ptr!]
-			flags                   [integer!]
-			mem                     [byte-ptr!]
-			return:                 [integer!]
-		]
-
-		HeapValidate: "HeapValidate" [
-			heap                    [byte-ptr!]
-			flags                   [integer!]
-			mem                     [byte-ptr!]
-			return:                 [integer!]
-		]
-
-		HeapWalk: "HeapWalk" [
-			heap                    [byte-ptr!]
-			entry                   [byte-ptr!]
-			return:                 [integer!]
-		]
-
-		Sleep: "Sleep" [
-			millisecs               [integer!]
-		]
-
-	]] ;#import
-
-
 	;##########################000000####### sqlfuncs ##
 	;
 	;  ██████  ██████  ██      ███████ ██    ██ ███    ██  ██████  ██████
@@ -2775,13 +2700,6 @@ sql: context [
 
 odbc: context [
 
-	;------------------------------------------- heap --
-	;
-
-	heap: declare byte-ptr!
-	heap: null
-
-
 	;--------------------------- state objects layout --
 	;
 
@@ -2940,43 +2858,6 @@ odbc: context [
 	]
 
 
-	;------------------------------------- print-heap --
-	;   debugging only
-
-	print-heap: func [
-		heap            [byte-ptr!]
-		/local
-			i           [integer!]
-			rc          [integer!]
-			step        [sql_heap_entry!]
-	][
-		step:           declare sql_heap_entry!
-		step/data:      null
-		step/size:      0
-		step/overhead:  as byte! 0
-		step/index:     as byte! 0
-		step/flags:     0
-
-		rc: 0
-		i:  0
-
-		while [true] [
-			rc: sql/HeapWalk heap as byte-ptr! step
-			if zero? rc [break]
-
-			i: i + 1
-			print [i tab step/data space step/size tab as integer! step/overhead tab as integer! step/index tab step/flags tab]
-
-			unless zero? (step/flags >> 8 and 0001h) [print ["region"      space]]
-			unless zero? (step/flags >> 8 and 0002h) [print ["uncommitted" space]]
-			unless zero? (step/flags >> 8 and 0004h) [print ["busy"        space]]
-			unless zero? (step/flags >> 8 and 0010h) [print ["moveable"    space]]
-			unless zero? (step/flags >> 8 and 0020h) [print ["ddeshare"    space]]
-			print [lf]
-		]
-	]
-
-
 	;--------------------------------------- wlength? --
 	;   There must be sth. better
 
@@ -3004,9 +2885,9 @@ odbc: context [
 			allocating  [subroutine!]
 			errors      [red-block!]
 			freeing     [subroutine!]
-			mesg-buf    [byte-ptr!]
-			mesg-buflen [integer!]
-			mesg-len    [integer!]
+			msg-buf     [byte-ptr!]
+			msg-buflen  [integer!]
+			msg-len     [integer!]
 			native      [integer!]
 			rc          [integer!]
 			record-num  [integer!]
@@ -3014,21 +2895,21 @@ odbc: context [
 			vent        [red-value!]
 	][                                                                          #if debug? = yes [print ["DIAGNOSE-ERROR [" lf]]
 		allocating: [
-			if state = null [                                                   #if debug? = yes [print ["^-HeapAlloc state, " 5 + 1 << 1 " bytes"]]
-				state:    sql/HeapAlloc heap 0 5 + 1 << 1                       #if debug? = yes [print [" @ " state " " either state <> null ["ok."] ["failed!"] lf]]
+			if state = null [                                                   #if debug? = yes [print ["^-allocate state, " 5 + 1 << 1 " bytes"]]
+				state:   allocate 5 + 1 << 1                                    #if debug? = yes [print [" @ " state " " either state <> null ["ok."] ["failed!"] lf]]
 			]
-			if mesg-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc mesg-buf, " mesg-buflen + 1 << 1 " bytes"]]
-				mesg-buf: sql/HeapAlloc heap 0 mesg-buflen + 1 << 1             #if debug? = yes [print [" @ " mesg-buf " " either mesg-buf <> null ["ok."] ["failed!"] lf]]
+			if msg-buf = null [                                                 #if debug? = yes [print ["^-allocate msg-buf, " msg-buflen + 1 << 1 " bytes"]]
+				msg-buf: allocate msg-buflen + 1 << 1                           #if debug? = yes [print [" @ " msg-buf " " either msg-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if state <> null [                                                  #if debug? = yes [print ["^-HeapFree state @ " state]]
-				sql/HeapFree heap 0 state                                       #if debug? = yes [print [" ok." lf]]
+			if state <> null [                                                  #if debug? = yes [print ["^-free state @ " state]]
+				free state                                                      #if debug? = yes [print [" ok." lf]]
 				state: null
 			]
-			if mesg-buf <> null [                                               #if debug? = yes [print ["^-HeapFree mesg-buf @ " mesg-buf]]
-				sql/HeapFree heap 0 mesg-buf                                    #if debug? = yes [print [" ok." lf]]
-				mesg-buf: null
+			if msg-buf <> null [                                                #if debug? = yes [print ["^-free msg-buf @ " msg-buf]]
+				free msg-buf                                                    #if debug? = yes [print [" ok." lf]]
+				msg-buf: null
 			]
 		]
 
@@ -3040,9 +2921,9 @@ odbc: context [
 		record-num:     0
 		state:          null
 		native:         0
-		mesg-buf:       null
-		mesg-buflen:    2047
-		mesg-len:       0
+		msg-buf:        null
+		msg-buflen:     2047
+		msg-len:        0
 
 		until [
 			record-num: record-num + 1
@@ -3052,7 +2933,7 @@ odbc: context [
 
 				if any [
 					state = null
-					mesg-buf = null
+					msg-buf = null
 				][
 					rc: sql/no-data                                             ;-- silently break out with ODBC_NO_DATA, throw no error
 					break                                                       ;
@@ -3063,14 +2944,14 @@ odbc: context [
 											  record-num
 											  state
 											 :native
-											  mesg-buf
-											  mesg-buflen
-											 :mesg-len                          #if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
+											  msg-buf
+											  msg-buflen
+											 :msg-len                           #if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
 				if all [
 					ODBC_INFO
-					mesg-buflen < mesg-len
+					msg-buflen < msg-len
 				][
-					mesg-buflen: mesg-len
+					msg-buflen: msg-len
 					freeing
 					continue                                                    ;-- try again with bigger buffer
 				]
@@ -3080,9 +2961,9 @@ odbc: context [
 
 			if ODBC_SUCCEEDED [
 																				#if debug? = yes [print-wstring as c-string! state]
-				string/load-in as c-string! state 5           errors UTF-16LE   #if debug? = yes [print-buffer mesg-buf mesg-len << 1]
-				integer/make-in                               errors native     #if debug? = yes [print [" " native " "]]
-				string/load-in as c-string! mesg-buf mesg-len errors UTF-16LE   #if debug? = yes [print-wstring as c-string! mesg-buf]
+				 string/load-in as c-string! state   5       errors UTF-16LE    #if debug? = yes [print-buffer msg-buf msg-len << 1]
+				integer/make-in                              errors native      #if debug? = yes [print [" " native " "]]
+				 string/load-in as c-string! msg-buf msg-len errors UTF-16LE    #if debug? = yes [print-wstring as c-string! msg-buf]
 																				#if debug? = yes [print [lf]]
 			]
 

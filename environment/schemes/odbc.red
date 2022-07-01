@@ -217,11 +217,6 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		odbc/heap: sql/HeapCreate 0 0 0                                         #if debug? = yes [print ["^-HeapCreate " odbc/heap lf]]
-		unless odbc/heap <> null [
-			TO_ERROR(internal no-memory)
-		]
-
 		SET_RETURN(none-value)                                                  #if debug? = yes [print ["]" lf]]
 	]
 
@@ -247,20 +242,20 @@ odbc: context [
 			venv        [red-value!]
 	][                                                                          #if debug? = yes [print ["LIST-DRIVERS [" lf]]
 		allocating: [
-			if desc-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc desc-buf, " desc-buflen + 1 << 1 " bytes"]]
-				desc-buf: sql/HeapAlloc odbc/heap 0 desc-buflen + 1 << 1        #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
+			if desc-buf = null [                                                #if debug? = yes [print ["^-allocate desc-buf, " desc-buflen + 1 << 1 " bytes"]]
+				desc-buf: allocate desc-buflen + 1 << 1                         #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
 			]
-			if attr-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc attr-buf, " attr-buflen + 1 << 1 " bytes"]]
-				attr-buf: sql/HeapAlloc odbc/heap 0 attr-buflen + 1 << 1        #if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
+			if attr-buf = null [                                                #if debug? = yes [print ["^-allocate attr-buf, " attr-buflen + 1 << 1 " bytes"]]
+				attr-buf: allocate attr-buflen + 1 << 1                         #if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if desc-buf <> null [                                               #if debug? = yes [print ["^-HeapFree desc-buf @ " desc-buf]]
-				sql/HeapFree odbc/heap 0 desc-buf                               #if debug? = yes [print [" ok." lf]]
+			if desc-buf <> null [                                               #if debug? = yes [print ["^-free desc-buf @ " desc-buf]]
+				free desc-buf                                                   #if debug? = yes [print [" ok." lf]]
 				desc-buf: null
 			]
-			if attr-buf <> null [                                               #if debug? = yes [print ["^-HeapFree attr-buf @ " attr-buf]]
-				sql/HeapFree odbc/heap 0 attr-buf                               #if debug? = yes [print [" ok." lf]]
+			if attr-buf <> null [                                               #if debug? = yes [print ["^-free attr-buf @ " attr-buf]]
+				Free attr-buf                                                   #if debug? = yes [print [" ok." lf]]
 				attr-buf: null
 			]
 		]
@@ -365,20 +360,20 @@ odbc: context [
 			venv        [red-value!]
 	][                                                                          #if debug? = yes [print ["LIST-SOURCES [" lf]]
 		allocating: [
-			if serv-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc serv-buf, " serv-buflen + 1 << 1 " bytes"]]
-				serv-buf: sql/HeapAlloc odbc/heap 0 serv-buflen + 1 << 1        #if debug? = yes [print [" @ " serv-buf " " either serv-buf <> null ["ok."] ["failed!"] lf]]
+			if serv-buf = null [                                                #if debug? = yes [print ["^-allocate serv-buf, " serv-buflen + 1 << 1 " bytes"]]
+				serv-buf: allocate serv-buflen + 1 << 1                         #if debug? = yes [print [" @ " serv-buf " " either serv-buf <> null ["ok."] ["failed!"] lf]]
 			]
-			if desc-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc desc-buf, " desc-buflen + 1 << 1 " bytes"]]
-				desc-buf: sql/HeapAlloc odbc/heap 0 desc-buflen + 1 << 1        #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
+			if desc-buf = null [                                                #if debug? = yes [print ["^-allocate desc-buf, " desc-buflen + 1 << 1 " bytes"]]
+				desc-buf: allocate desc-buflen + 1 << 1                         #if debug? = yes [print [" @ " desc-buf " " either desc-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if serv-buf <> null [                                               #if debug? = yes [print ["^-HeapFree serv-buf @ " serv-buf]]
-				sql/HeapFree odbc/heap 0 serv-buf                               #if debug? = yes [print [" ok." lf]]
+			if serv-buf <> null [                                               #if debug? = yes [print ["^-free serv-buf @ " serv-buf]]
+				free serv-buf                                                   #if debug? = yes [print [" ok." lf]]
 				serv-buf: null
 			]
-			if desc-buf <> null [                                               #if debug? = yes [print ["^-HeapFree desc-buf @ " desc-buf]]
-				sql/HeapFree odbc/heap 0 desc-buf                               #if debug? = yes [print [" ok." lf]]
+			if desc-buf <> null [                                               #if debug? = yes [print ["^-free desc-buf @ " desc-buf]]
+				free desc-buf                                                   #if debug? = yes [print [" ok." lf]]
 				desc-buf: null
 			]
 		]
@@ -591,13 +586,13 @@ odbc: context [
 			vent        [red-value!]
 	][
 		allocating: [
-			if attr-buf = null [                                                ;if debug? = yes [print ["^-HeapAlloc attr-buf, " attr-buflen + 1 << 1 " bytes"]]
-				attr-buf: sql/HeapAlloc odbc/heap 0 attr-buflen + 1 << 1        ;if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
+			if attr-buf = null [                                                #if debug? = yes [print ["^-allocate attr-buf, " attr-buflen + 1 << 1 " bytes"]]
+				attr-buf: allocate attr-buflen + 1 << 1                         #if debug? = yes [print [" @ " attr-buf " " either attr-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if attr-buf <> null [                                               ;if debug? = yes [print ["^-HeapFree attr-buf @ " attr-buf]]
-				sql/HeapFree odbc/heap 0 attr-buf                               ;if debug? = yes [print [" ok." lf]]
+			if attr-buf <> null [                                               #if debug? = yes [print ["^-free attr-buf @ " attr-buf]]
+				free attr-buf                                                   #if debug? = yes [print [" ok." lf]]
 				attr-buf: null
 			]
 		]
@@ -836,8 +831,8 @@ odbc: context [
 		vstm:       object/get-values statement
 		hcon:       as red-handle! vcon + odbc/cmnfld-handle
 		sqlhstm:    0
-																				#if debug? = yes [print ["^-HeapAlloc fetched, " size? integer! " bytes"]]
-		fetched: sql/HeapAlloc odbc/heap 0 size? integer!                       #if debug? = yes [print [" @ " fetched " " either fetched <> null ["ok."] ["failed!"] lf]]
+																				#if debug? = yes [print ["^-allocate fetched, " size? integer! " bytes"]]
+		fetched: allocate size? integer!                                        #if debug? = yes [print [" @ " fetched " " either fetched <> null ["ok."] ["failed!"] lf]]
 		if fetched = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
@@ -883,13 +878,13 @@ odbc: context [
 			vcon        [red-value!]
 	][                                                                          #if debug? = yes [print ["TRANSLATE-STATEMENT [" lf]]
 		allocating: [
-			if natv-buf = null [                                                #if debug? = yes [print ["^-HeapAlloc natv-buf, " natv-buflen + 1 << 1 " bytes"]]
-				natv-buf: sql/HeapAlloc odbc/heap 0 natv-buflen + 1 << 1        #if debug? = yes [print [" @ " natv-buf " " either natv-buf <> null ["ok."] ["failed!"] lf]]
+			if natv-buf = null [                                                #if debug? = yes [print ["^-allocate natv-buf, " natv-buflen + 1 << 1 " bytes"]]
+				natv-buf: allocate natv-buflen + 1 << 1                         #if debug? = yes [print [" @ " natv-buf " " either natv-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if natv-buf <> null [                                                #if debug? = yes [print ["^-HeapFree natv-buf @ " natv-buf]]
-				sql/HeapFree odbc/heap 0 natv-buf                                #if debug? = yes [print [" ok." lf]]
+			if natv-buf <> null [                                               #if debug? = yes [print ["^-free natv-buf @ " natv-buf]]
+				free natv-buf                                                   #if debug? = yes [print [" ok." lf]]
 				natv-buf: null
 			]
 		]
@@ -1145,7 +1140,7 @@ odbc: context [
 		prm: 0
 		loop prms [
 			buffer: as red-handle! block/rs-abs-at params prm                   ;-- NOTE: buffers come in param'n'strlen buffer pairs here
-			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
+			free as byte-ptr! buffer/value
 			prm: prm + 1
 		]
 
@@ -1189,7 +1184,6 @@ odbc: context [
 			sql-type    [integer!]
 			stat-buf    [byte-ptr!]
 			status      [red-handle!]
-			strlen      [integer!]
 			tm          [sql-time!]
 			ts          [sql-timestamp!]
 			val-float   [float!]
@@ -1204,8 +1198,8 @@ odbc: context [
 		rows:      block/rs-length? params
 		prms:      block/rs-length? as red-block! block/rs-head params          #if debug? = yes [print ["^-" rows " rows of " prms " params" lf]]
 
-																				#if debug? = yes [print ["^-HeapAlloc stat-buf, " rows * size? integer! " bytes"]]
-		stat-buf:  sql/HeapAlloc odbc/heap 0 rows * size? integer!              #if debug? = yes [print [" @ " stat-buf lf]]
+																				#if debug? = yes [print ["^-allocate stat-buf, " rows * size? integer! " bytes"]]
+		stat-buf:  allocate rows * size? integer!                               #if debug? = yes [print [" @ " stat-buf lf]]
 		status:    handle/box as integer! stat-buf
 
 		copy-cell as red-value! status                                          ;-- store pointer in statement
@@ -1225,10 +1219,9 @@ odbc: context [
 			prm-slotlen: 0
 			row: 1
 			loop rows [
-																				#if debug? = yes [print ["^-^-prm-slotlen? row " row "/" rows lf]]
 
 				value: block/rs-abs-at params row                               ;-- NOTE: correct, because rows - 1 is the SQL string itself
-				param: block/rs-abs-at as red-block! value prm - 1              #if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
+				param: block/rs-abs-at as red-block! value prm - 1              #if debug? = yes [print ["^-TYPE_OF(" TYPE_OF(param) ")" lf]]
 
 				case [
 					any [
@@ -1240,7 +1233,7 @@ odbc: context [
 						TYPE_OF(param) = TYPE_REF
 					][
 						prm-len: (odbc/wlength? unicode/to-utf16 as red-string! param) + 1 << 1
-																				#if debug? = yes [print ["^-^-^-prm-len = " prm-len lf]]
+																				#if debug? = yes [print ["^-prm-len = " prm-len lf]]
 						if prm-slotlen < prm-len [prm-slotlen: prm-len]
 					]
 					TYPE_OF(param) = TYPE_BINARY [
@@ -1275,15 +1268,15 @@ odbc: context [
 
 				row: row + 1
 			]
-																				#if debug? = yes [print ["^-^-^-prm-slotlen = " prm-slotlen lf]]
+																				#if debug? = yes [print ["^-prm-slotlen = " prm-slotlen lf]]
 			;-- create buffer
 			;
 
-			prm-buflen: rows * prm-slotlen                                      #if debug? = yes [print ["^-HeapAlloc prm-buf, " prm-buflen " bytes"]]
-			prm-buf:    sql/HeapAlloc odbc/heap 0 prm-buflen                    #if debug? = yes [print [" @ " prm-buf " " either val-buf <> null ["ok."] ["failed!"] lf]]
+			prm-buflen: rows * prm-slotlen                                      #if debug? = yes [print ["^-allocate prm-buf, " prm-buflen " bytes"]]
+			prm-buf:    allocate prm-buflen                                     #if debug? = yes [print [" @ " prm-buf " " either prm-buf <> null ["ok."] ["failed!"] lf]]
 
-																				#if debug? = yes [print ["^-HeapAlloc len-buf, " rows * size? integer! " bytes @ " lenbuf lf]]
-			len-buf:    sql/HeapAlloc odbc/heap 0 rows * size? integer!         #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
+																				#if debug? = yes [print ["^-allocate len-buf, " rows * size? integer! " bytes"]]
+			len-buf:    allocate rows * size? integer!                          #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
 
 			handle/make-in buffers as integer! prm-buf
 			handle/make-in buffers as integer! len-buf
@@ -1301,10 +1294,8 @@ odbc: context [
 
 			row: 1
 			loop rows [
-																				#if debug? = yes [print ["^-^-populate row " row "/" rows lf]]
-
 				value: block/rs-abs-at params row                               ;-- NOTE: correct, because rows - 1 is the SQL string itself
-				param: block/rs-abs-at as red-block! value prm - 1              #if debug? = yes [print ["^-^-TYPE_OF(" TYPE_OF(param) ")" lf]]
+				param: block/rs-abs-at as red-block! value prm - 1
 
 				len-slot/value: 0
 
@@ -1328,13 +1319,12 @@ odbc: context [
 					TYPE_ANY_STRING [
 						c-type:                 sql/c-wchar
 						sql-type:               sql/wvarchar
-						col-size:               prm-slotlen
+						col-size:               prm-slotlen >> 1 - 1
 
 						c-string:               unicode/to-utf16 as red-string! param
-						strlen:                 odbc/wlength? c-string
-						len-slot/value:         strlen << 1                     ;-- actual octet length w/o null-terminator
+						len-slot/value:         sql/nts
 
-						copy-memory prm-slot as byte-ptr! c-string strlen + 1 << 1
+						copy-memory prm-slot as byte-ptr! c-string prm-slotlen
 					]
 					TYPE_BINARY [
 						c-type:                 sql/c-binary
@@ -1415,8 +1405,8 @@ odbc: context [
 																				#if debug? = yes [print ["^-prm-slotlen " prm-slotlen lf]]
 																				#if debug? = yes [print ["^-len-buf "     len-buf     lf]]
 			if debug [
-				odbc/print-buffer              prm-buf prm-buflen
-				odbc/print-buffer as byte-ptr! len-buf rows * size? integer!
+				odbc/print-buffer prm-buf prm-buflen
+				odbc/print-buffer len-buf rows * size? integer!
 			]
 
 			ODBC_RESULT sql/SQLBindParameter hstm/value
@@ -1428,7 +1418,7 @@ odbc: context [
 			                                 digits
 			                                 prm-buf
 			                                 prm-slotlen
-			                                 len-buf                            #if debug? = yes [print ["^-SQLBindParameter " rc lf]]
+			                                 as int-ptr! len-buf                #if debug? = yes [print ["^-SQLBindParameter " rc lf]]
 
 			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
@@ -1861,8 +1851,8 @@ odbc: context [
 			buffer: as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
 			strlen: as red-handle! block/rs-abs-at columns offset + odbc/colfld-strlen-ind
 
-			sql/HeapFree odbc/heap 0 as byte-ptr! buffer/value
-			sql/HeapFree odbc/heap 0 as byte-ptr! strlen/value
+			free as byte-ptr! buffer/value
+			free as byte-ptr! strlen/value
 
 			buffer/value: 0
 			strlen/value: 0
@@ -1922,11 +1912,11 @@ odbc: context [
 																				#if debug? = yes [print ["^-window = " window lf]]
 		value:                   vstm + odbc/stmfld-rows-status
 		if TYPE_OF(value) = TYPE_HANDLE [
-			row-status: as red-handle! value                                    #if debug? = yes [print ["^-HeapFree row-buf @ " as byte-ptr! row-status/value]]
-			sql/HeapFree odbc/heap 0 as byte-ptr! row-status/value              #if debug? = yes [print [" ok." lf]]
+			row-status: as red-handle! value                                    #if debug? = yes [print ["^-free row-buf @ " as byte-ptr! row-status/value]]
+			free as byte-ptr! row-status/value                                  #if debug? = yes [print [" ok." lf]]
 		]
-																				#if debug? = yes [print ["^-HeapAlloc row-buf, " window * size? integer! " bytes"]]
-		row-buf:    sql/HeapAlloc odbc/heap 0 window * size? integer!
+																				#if debug? = yes [print ["^-allocate row-buf, " window * size? integer! " bytes"]]
+		row-buf:    allocate window * size? integer!
 		row-status: handle/box as integer! row-buf                              #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
 		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
@@ -1940,8 +1930,8 @@ odbc: context [
 		set-statement statement sql/attr-rows-fetched-ptr fetched/value      0  ;
 
 		nam-buflen: 127                                                         ;-- FIXME: this *should* be enough
-		nam-len:    0                                                           #if debug? = yes [print ["^-HeapAlloc nam-buf, " nam-buflen + 1 << 1 " bytes"]]
-		nam-buf:    as c-string! sql/HeapAlloc odbc/heap 0 nam-buflen + 1 << 1  #if debug? = yes [print [" @ " as byte-ptr! nam-buf " " either null <> as byte-ptr! nam-buf ["ok."] ["failed!"] lf lf]]
+		nam-len:    0                                                           #if debug? = yes [print ["^-allocate nam-buf, " nam-buflen + 1 << 1 " bytes"]]
+		nam-buf:    as c-string! allocate nam-buflen + 1 << 1                   #if debug? = yes [print [" @ " as byte-ptr! nam-buf " " either null <> as byte-ptr! nam-buf ["ok."] ["failed!"] lf lf]]
 		unless nam-buf <> null [fire [
 			TO_ERROR(internal no-memory)
 		]]
@@ -1953,9 +1943,6 @@ odbc: context [
 		col:         either bookmarks [0] [1]
 
 		while [col <= cols] [
-																				#if debug? = yes [print ["^-heap " either zero? sql/HeapValidate odbc/heap 0 null [" *** INVALID ***"]["valid"] lf]]
-																				;if debug? = yes [odbc/print-heap odbc/heap]
-
 																				#if debug? = yes [print ["^-col = " col lf]]
 			ODBC_RESULT sql/SQLDescribeCol hstm/value
 			                               col
@@ -1966,9 +1953,6 @@ odbc: context [
 			                              :col-size
 			                              :digits
 			                              :nullable                             #if debug? = yes [print ["^-SQLDescribeCol " rc lf]]
-
-																				#if debug? = yes [print ["^-heap " either zero? sql/HeapValidate odbc/heap 0 null [" *** INVALID ***"]["valid"] lf]]
-																				;if debug? = yes [odbc/print-heap odbc/heap]
 
 			ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
 
@@ -2096,18 +2080,14 @@ odbc: context [
 				TO_ERROR(internal limit-hit) odbc/__odbc
 			]]
 																				#if debug? = yes [print [" => col-buflen = " col-buflen lf]]
-
-			;--
-			;sql/Sleep 5 * 60 * 1000
-			;--
-																				#if debug? = yes [print ["^-HeapAlloc col-buf, " col-buflen " bytes "]]
-			col-buf: sql/HeapAlloc odbc/heap 0 col-buflen                       #if debug? = yes [print [" @ " col-buf " " either col-buf <> null ["ok."] ["failed!"] lf]]
+																				#if debug? = yes [print ["^-allocate col-buf, " col-buflen " bytes "]]
+			col-buf: allocate col-buflen                                        #if debug? = yes [print [" @ " col-buf " " either col-buf <> null ["ok."] ["failed!"] lf]]
 			if col-buf = null [fire [
 				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
 			]]
 
-			len-buflen: window * size? integer!                                 #if debug? = yes [print ["^-HeapAlloc len-buf, " len-buflen * size? integer! " bytes "]]
-			len-buf: as int-ptr! sql/HeapAlloc odbc/heap 0 len-buflen           #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
+			len-buflen: window * size? integer!                                 #if debug? = yes [print ["^-allocate len-buf, " len-buflen * size? integer! " bytes "]]
+			len-buf: as int-ptr! allocate len-buflen                            #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
 			if len-buf = null [fire [
 				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
 			]]
@@ -2148,8 +2128,8 @@ odbc: context [
 
 			col: col + 1
 		]
-																				#if debug? = yes [print ["^-HeapFree nam-buf @ " as byte-ptr! nam-buf]]
-		sql/HeapFree odbc/heap 0 as byte-ptr! nam-buf                           #if debug? = yes [print [" ok." lf]]
+																				#if debug? = yes [print ["^-free nam-buf @ " as byte-ptr! nam-buf]]
+		free as byte-ptr! nam-buf                                               #if debug? = yes [print [" ok." lf]]
 
 		SET_RETURN(columns)                                                     #if debug? = yes [print ["]" lf]]
 	]
@@ -2488,8 +2468,8 @@ odbc: context [
 			]
 		]
 
-		val-buflen:    4096                                                     #if debug? = yes [print ["^-HeapAlloc val-buf, " val-buflen " bytes"]]
-		val-buf:       sql/HeapAlloc odbc/heap 0 val-buflen                     #if debug? = yes [print [" @ " val-buf " " either val-buf <> null ["ok."] ["failed!"] lf]]
+		val-buflen:    4096                                                     #if debug? = yes [print ["^-allocate val-buf, " val-buflen " bytes"]]
+		val-buf:       allocate val-buflen                                      #if debug? = yes [print [" @ " val-buf " " either val-buf <> null ["ok."] ["failed!"] lf]]
 
 		len-ptr:       declare int-ptr!
 		len-ptr/value: 0
@@ -2511,8 +2491,8 @@ odbc: context [
 				ODBC_INFO
 				ODBC_NO_DATA
 			][
-																				#if debug? = yes [print ["^-HeapFree val-buf @ " val-buf]]
-				sql/HeapFree odbc/heap 0 val-buf                                #if debug? = yes [print [" ok." lf]]
+																				#if debug? = yes [print ["^-free val-buf @ " val-buf]]
+				free val-buf                                                    #if debug? = yes [print [" ok." lf]]
 				fire [
 					TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 				]
@@ -2537,8 +2517,8 @@ odbc: context [
 
 			any [ODBC_INVALID ODBC_ERROR ODBC_NO_DATA]
 		]
-																				#if debug? = yes [print ["^-HeapFree val-buf @ " val-buf]]
-		sql/HeapFree odbc/heap 0 val-buf                                        #if debug? = yes [print [" ok." lf]]
+																				#if debug? = yes [print ["^-free val-buf @ " val-buf]]
+		free val-buf                                                            #if debug? = yes [print [" ok." lf]]
 
 		either sql-type <> sql/longvarbinary [
 			redstr:     as red-string! as red-value! redbin
@@ -2608,8 +2588,8 @@ odbc: context [
 		redhnd:     as red-handle! vstm + odbc/stmfld-rows-fetched
 
 		fetched:    as byte-ptr! redhnd/value
-		if fetched <> null [                                                    #if debug? = yes [print ["^-HeapFree fetched @ " fetched]]
-			sql/HeapFree odbc/heap 0 fetched                                    #if debug? = yes [print [" ok." lf]]
+		if fetched <> null [                                                    #if debug? = yes [print ["^-free fetched @ " fetched]]
+			free fetched                                                        #if debug? = yes [print [" ok." lf]]
 		]
 
 		ODBC_RESULT sql/SQLFreeHandle sql/handle-stmt hstm/value                #if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
@@ -2675,11 +2655,6 @@ odbc: context [
 		unless ODBC_SUCCEEDED [fire [
 			TO_ERROR(access cannot-close) environment
 		]]
-
-		if odbc/heap <> null [
-			sql/HeapDestroy odbc/heap
-			odbc/heap: null
-		]
 
 		SET_RETURN(none-value)                                                  #if debug? = yes [print ["]" lf]]
 	]
