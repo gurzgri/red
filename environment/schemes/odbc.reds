@@ -2725,6 +2725,7 @@ odbc: context [
 		stmfld-params
 		stmfld-prms-status
 		stmfld-window
+		stmfld-cols
 		stmfld-columns
 		stmfld-rows-status
 		stmfld-rows-fetched
@@ -2742,9 +2743,9 @@ odbc: context [
 		colfld-col-size
 		colfld-digits
 		colfld-nullable
-		colfld-buffer
-		colfld-buffer-len
-		colfld-strlen-ind
+		colfld-slotlen
+		colfld-colbuf
+		colfld-lenbuf
 		colfld-fields
 
 		csrfld-statement:           5

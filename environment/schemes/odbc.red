@@ -106,6 +106,7 @@ odbc: context [
 		params:         []
 		prms-status:    none
 		window:         1024                                                    ;-- default window size
+		cols:           none
 		columns:        []
 		rows-status:    none
 		rows-fetched:   none
@@ -147,7 +148,9 @@ odbc: context [
 						cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]
 					]
 				]]
-				window [unless all [integer? new positive? new] [
+				window [either all [integer? new positive? new] [if old <> new [
+					free-columns self
+				]][
 					window: old
 					cause-error 'script 'expect-type ['the 'window [not negative? integer!]]
 				]]
@@ -1822,7 +1825,7 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		SET_RETURN((integer/box cols))                                          #if debug? = yes [print ["]" lf]]
+		SET_RETURN((either zero? cols [none-value] [integer/box cols]))         #if debug? = yes [print ["]" lf]]
 	]
 
 
@@ -1832,70 +1835,76 @@ odbc: context [
 	free-columns: routine [
 		statement       [object!]
 		/local
-			buffer      [red-handle!]
+			rowbuf      [red-handle!]
+			colbuf      [red-handle!]
 			cols        [integer!]
 			columns     [red-block!]
 			num         [integer!]
 			offset      [integer!]
-			strlen      [red-handle!]
+			lenbuf      [red-handle!]
+			value       [red-value!]
 			vstm        [red-value!]
 	][                                                                          #if debug? = yes [print ["FREE-COLUMNS [" lf]]
-		vstm:    object/get-values statement
-		columns: as red-block! vstm + odbc/stmfld-columns
-		cols:    (block/rs-length? columns) / odbc/colfld-fields
+		vstm:  object/get-values statement
+		value: vstm + odbc/stmfld-rows-status
+		if TYPE_OF(value) = TYPE_NONE [
+			exit                                                                ;-- exit early, no columns are bound
+		]
 
+		rowbuf:  as red-handle! value
+		free as byte-ptr! rowbuf/value
+
+		copy-cell none-value                                                    ;-- will force a column rebinding
+		          as red-value! vstm + odbc/stmfld-rows-status
+
+		columns:  as red-block! vstm + odbc/stmfld-columns
+
+		cols:    (block/rs-length? columns) / odbc/colfld-fields
 		num: 0
 		while [num < cols] [
 			offset: num * odbc/colfld-fields
 
-			buffer: as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
-			strlen: as red-handle! block/rs-abs-at columns offset + odbc/colfld-strlen-ind
+			colbuf: as red-handle! block/rs-abs-at columns offset + odbc/colfld-colbuf
+			lenbuf: as red-handle! block/rs-abs-at columns offset + odbc/colfld-lenbuf
 
-			free as byte-ptr! buffer/value
-			free as byte-ptr! strlen/value
+			free as byte-ptr! colbuf/value
+			free as byte-ptr! lenbuf/value
 
-			buffer/value: 0
-			strlen/value: 0
+			colbuf/value: 0
+			lenbuf/value: 0
 
 			num: num + 1
 		]
-
-		block/rs-clear columns                                                  #if debug? = yes [print ["]" lf]]
+														                        #if debug? = yes [print ["]" lf]]
 	]
 
 
-	;----------------------------------- bind-columns --
+	;------------------------------- describe-columns --
 	;
 
-	bind-columns: routine [                                                     ;-- FIXME: needs code cleaning
+	describe-columns: routine [
 		statement       [object!]
-		cols            [integer!]
 		/local
 			bookmarks   [logic!]
 			c-type      [integer!]
 			col         [integer!]
-			col-buf     [byte-ptr!]
-			col-buflen  [integer!]
+			cols        [integer!]
 			col-size    [integer!]
 			col-slotlen [integer!]
 			columns     [red-block!]
 			digits      [integer!]
-			fetched     [red-handle!]
 			hstm        [red-handle!]
-			len-buf     [int-ptr!]
-			len-buflen  [integer!]
 			nam-buf     [c-string!]
 			nam-buflen  [integer!]
 			nam-len     [integer!]
 			nullable    [integer!]
 			rc          [integer!]
 			row-buf     [byte-ptr!]
-			row-status  [red-handle!]
 			sql-type    [integer!]
 			value       [red-value!]
 			vstm        [red-value!]
 			window      [integer!]
-	][                                                                          #if debug? = yes [print ["BIND-COLUMNS [" lf]]
+	][                                                                          #if debug? = yes [print ["DESCRIBE-COLUMNS [" lf]]
 		digits:         0
 		nullable:       0
 		sql-type:       0
@@ -1907,27 +1916,7 @@ odbc: context [
 		hstm:   as red-handle! vstm + odbc/cmnfld-handle                        #if debug? = yes [print ["^-hstm/value = " hstm/value lf]]
 
 		bookmarks:     logic/get vstm + odbc/stmfld-bookmarks?
-		fetched:  as red-handle! vstm + odbc/stmfld-rows-fetched                ;-- number of rows fetched
-		window:      integer/get vstm + odbc/stmfld-window                      ;-- window size (num of rows to recieve)
-																				#if debug? = yes [print ["^-window = " window lf]]
-		value:                   vstm + odbc/stmfld-rows-status
-		if TYPE_OF(value) = TYPE_HANDLE [
-			row-status: as red-handle! value                                    #if debug? = yes [print ["^-free row-buf @ " as byte-ptr! row-status/value]]
-			free as byte-ptr! row-status/value                                  #if debug? = yes [print [" ok." lf]]
-		]
-																				#if debug? = yes [print ["^-allocate row-buf, " window * size? integer! " bytes"]]
-		row-buf:    allocate window * size? integer!
-		row-status: handle/box as integer! row-buf                              #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
-		if row-buf = null [fire [
-			TO_ERROR(internal no-memory)
-		]]
-
-		copy-cell as red-value! row-status                                      ;-- store pointer in statement
-		          vstm + odbc/stmfld-rows-status                                ;
-
-		set-statement statement sql/attr-row-bind-type    sql/bind-by-column 0  ;-- setting statement attributes
-		set-statement statement sql/attr-row-array-size   window             0  ;
-		set-statement statement sql/attr-rows-fetched-ptr fetched/value      0  ;
+		cols:        integer/get vstm + odbc/stmfld-cols
 
 		nam-buflen: 127                                                         ;-- FIXME: this *should* be enough
 		nam-len:    0                                                           #if debug? = yes [print ["^-allocate nam-buf, " nam-buflen + 1 << 1 " bytes"]]
@@ -1935,8 +1924,6 @@ odbc: context [
 		unless nam-buf <> null [fire [
 			TO_ERROR(internal no-memory)
 		]]
-
-		col-buf:     null
 
 		columns:     block/push-only* cols * odbc/colfld-fields
 		col-size:    0
@@ -2073,39 +2060,112 @@ odbc: context [
 					col-slotlen: col-size + 1
 				]
 			]
-
 																				#if debug? = yes [print ["^-c-type = " c-type ", col-slotlen = " col-slotlen]]
+			   none/make-in columns
+			 string/load-in nam-buf nam-len columns UTF-16LE
+			integer/make-in columns sql-type
+			integer/make-in columns c-type
+			integer/make-in columns col-size
+			integer/make-in columns digits
+			integer/make-in columns nullable
+			integer/make-in columns col-slotlen
+			   none/make-in columns
+			   none/make-in columns
+
+			col: col + 1
+		]
+																				#if debug? = yes [print ["^-free nam-buf @ " as byte-ptr! nam-buf]]
+		free as byte-ptr! nam-buf                                               #if debug? = yes [print [" ok." lf]]
+
+		SET_RETURN(columns)                                                     #if debug? = yes [print ["]" lf]]
+	]
+
+
+	;----------------------------------- bind-columns --
+	;
+
+	bind-columns: routine [
+		statement       [object!]
+		/local
+			bookmarks   [logic!]
+			c-type      [integer!]
+			col         [integer!]
+			cols        [integer!]
+			col-buf     [byte-ptr!]
+			col-buflen  [integer!]
+			col-slotlen [integer!]
+			columns     [red-block!]
+			fetched     [red-handle!]
+			hstm        [red-handle!]
+			len-buf     [int-ptr!]
+			len-buflen  [integer!]
+			offset      [integer!]
+			rc          [integer!]
+			row-buf	    [byte-ptr!]
+			row-status  [red-handle!]
+			sql-type    [integer!]
+			value       [red-value!]
+			vstm        [red-value!]
+			window      [integer!]
+	][                                                                          #if debug? = yes [print ["BIND-COLUMNS [" lf]]
+		col-buf:     null
+
+		vstm:   object/get-values statement
+		value:                   vstm + odbc/stmfld-rows-status
+		if TYPE_OF(value) = TYPE_HANDLE [                                       #if debug? = yes [print ["]" lf]]
+			exit                                                                ;-- exit early, columns are already bound
+		]
+
+		hstm:     as red-handle! vstm + odbc/cmnfld-handle                      #if debug? = yes [print ["^-hstm/value = " hstm/value lf]]
+		window:      integer/get vstm + odbc/stmfld-window                      ;-- window size (num of rows to recieve)
+		bookmarks:     logic/get vstm + odbc/stmfld-bookmarks?
+		cols:        integer/get vstm + odbc/stmfld-cols
+		columns:   as red-block! vstm + odbc/stmfld-columns
+		fetched:  as red-handle! vstm + odbc/stmfld-rows-fetched                ;-- number of rows fetched
+
+		row-buf:    allocate window * size? integer!
+		if row-buf = null [fire [
+			TO_ERROR(internal no-memory)
+		]]
+		row-status: handle/box as integer! row-buf                              #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
+
+		copy-cell as red-value! row-status                                      ;-- store pointer in statement
+		          vstm + odbc/stmfld-rows-status                                ;
+
+		;-- statement attributes
+
+		set-statement statement sql/attr-row-bind-type    sql/bind-by-column 0  ;-- setting statement attributes
+		set-statement statement sql/attr-row-array-size   window             0  ;
+		set-statement statement sql/attr-rows-fetched-ptr fetched/value      0  ;
+
+		;-- bind columnns
+
+		offset: 0
+		col: either bookmarks [0] [1]
+
+		while [col <= cols] [
+
+			sql-type:    integer/get block/rs-abs-at columns offset + odbc/colfld-sql-type
+			c-type:      integer/get block/rs-abs-at columns offset + odbc/colfld-c-type
+			col-slotlen: integer/get block/rs-abs-at columns offset + odbc/colfld-slotlen
+
 			col-buflen: window * col-slotlen
 			if system/cpu/overflow? [fire [
 				TO_ERROR(internal limit-hit) odbc/__odbc
 			]]
 																				#if debug? = yes [print [" => col-buflen = " col-buflen lf]]
 																				#if debug? = yes [print ["^-allocate col-buf, " col-buflen " bytes "]]
-			col-buf: allocate col-buflen                                        #if debug? = yes [print [" @ " col-buf " " either col-buf <> null ["ok."] ["failed!"] lf]]
-			if col-buf = null [fire [
-				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
-			]]
+			col-buf:    allocate col-buflen                                     #if debug? = yes [print [" @ " col-buf " " either col-buf <> null ["ok."] ["failed!"] lf]]
+			if col-buf = null [fire [TO_ERROR(internal no-memory)]]             ;-- FIXME: this leaks prev. allocated buffers
 
 			len-buflen: window * size? integer!                                 #if debug? = yes [print ["^-allocate len-buf, " len-buflen * size? integer! " bytes "]]
-			len-buf: as int-ptr! allocate len-buflen                            #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
-			if len-buf = null [fire [
-				TO_ERROR(internal no-memory)                                    ;-- FIXME: this leaks prev. allocated buffers
-			]]
+			len-buf:    as int-ptr! allocate len-buflen                         #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
+			if len-buf = null [fire [TO_ERROR(internal no-memory)]]             ;-- FIXME: this leaks prev. allocated buffers
 
-			   none/make-in columns
-			;either zero? col [
-			;   string/load-in "bookmark" 8 columns UTF-8
-			;][
-			 string/load-in nam-buf nam-len columns UTF-16LE
-			;]
-			integer/make-in columns             sql-type
-			integer/make-in columns             c-type
-			integer/make-in columns             col-size
-			integer/make-in columns             digits
-			integer/make-in columns             nullable
-			 handle/make-in columns as integer! col-buf
-			integer/make-in columns             col-slotlen
-			 handle/make-in columns as integer! len-buf
+			copy-cell as red-value! handle/box as integer! col-buf                            ;-- store pointers in columns
+			          block/rs-abs-at columns offset + odbc/colfld-colbuf       ;
+			copy-cell as red-value! handle/box as integer! len-buf
+			          block/rs-abs-at columns offset + odbc/colfld-lenbuf
 
 			unless any [
 				sql-type = sql/wlongvarchar                                     ;-- skip binding for deferred columns for
@@ -2126,10 +2186,9 @@ odbc: context [
 				]]
 			]
 
+			offset: offset + odbc/colfld-fields
 			col: col + 1
 		]
-																				#if debug? = yes [print ["^-free nam-buf @ " as byte-ptr! nam-buf]]
-		free as byte-ptr! nam-buf                                               #if debug? = yes [print [" ok." lf]]
 
 		SET_RETURN(columns)                                                     #if debug? = yes [print ["]" lf]]
 	]
@@ -2245,8 +2304,8 @@ odbc: context [
 				loop cols [
 					offset: col * odbc/colfld-fields
 					col: col + 1
-					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
-					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-buffer-len
+					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-colbuf
+					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-slotlen
 
 					col-buf: as byte-ptr! col-bufptr/value
 					odbc/print-buffer col-buf col-slotlen * rows
@@ -2271,9 +2330,9 @@ odbc: context [
 					col-size:       integer/get block/rs-abs-at columns offset + odbc/colfld-col-size
 					digits:         integer/get block/rs-abs-at columns offset + odbc/colfld-digits
 					nullable:       integer/get block/rs-abs-at columns offset + odbc/colfld-nullable
-					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-buffer
-					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-buffer-len
-					len-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-strlen-ind
+					col-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-colbuf
+					col-slotlen:    integer/get block/rs-abs-at columns offset + odbc/colfld-slotlen
+					len-bufptr:  as red-handle! block/rs-abs-at columns offset + odbc/colfld-lenbuf
 
 					col-buf:     as byte-ptr! col-bufptr/value
 					col-slot:    col-buf + (row * col-slotlen)
@@ -2738,12 +2797,13 @@ odbc: context [
 		statement [object!]
 	][                                                                          if debug-odbc? [print "describe-result"]
 		set-quiet in statement 'length affected-rows statement
+		set-quiet in statement 'cols   count-columns statement
 
-		if zero? cols: count-columns statement [
+		unless statement/cols [
 			return statement/length                                             ;-- exit early with # rows
 		]
 
-		set-quiet in statement 'columns columns: bind-columns statement cols
+		set-quiet in statement 'columns columns: describe-columns statement
 
 		;-- translate and instert column names as word
 		;   in description block, return the words only
@@ -2781,9 +2841,9 @@ odbc: context [
 	]
 
 
-	;--------------------------------- return-columns --
+	;------------------------------- retrieve-columns --
 	;
-	;   FIXME:  This whole RETURN-COLUMNS thing is nothing
+	;   FIXME:  This whole REF? thing here is nothing
 	;           but a costly hack to late convert datatypes
 	;           on Red level instead of doing the right ting
 	;           on Red/System level
@@ -2791,12 +2851,15 @@ odbc: context [
 	;   Returns DECIMAL or NUMERIC if the a LOAD-able
 	;   or string otherwise.
 
-	return-columns: function [
+	retrieve-columns: function [
 		statement       [object!]
-		rows            [block!]
+		direction       [word!]
+		rows            [integer!]
 		/local
 			row
 	][                                                                          if debug-odbc? [print "return-columns"]
+		bind-columns statement
+		rows: fetch-columns statement direction rows
 
 		set-quiet in statement 'position
 		          either statement/access = 'forward [0] [                      ;-- or 24000 invalid cursor state if cursor not open
@@ -4035,6 +4098,7 @@ odbc: context [
 		freeing: [
 			free-parameters port/state                                          ;-- all this freeing is architecturally required for
 			free-columns    port/state                                          ;   a statement whicht is already prepared and bound
+			clear port/state/columns
 			free-statement  port/state
 		]
 
@@ -4253,7 +4317,7 @@ odbc: context [
 
 				free-parameters port/state                                      ;-- all this freeing is architecturally required for
 				free-columns    port/state                                      ;   a statement whicht is already prepared and bound
-
+				clear port/state/columns
 				describe-result port/state
 			]]
 		]
@@ -4269,8 +4333,7 @@ odbc: context [
 	][
 		dispatch 'copy port [
 			statement [
-				rows: fetch-columns port/state 'all 0
-				return-columns port/state rows
+				retrieve-columns port/state 'all 0
 			]
 		]
 	]
@@ -4309,8 +4372,7 @@ odbc: context [
 	][
 		dispatch 'skip port [
 			statement [
-				rows: fetch-columns port/state pick* [at skip] zero? rows rows
-				return-columns port/state rows
+				retrieve-columns port/state pick* [at skip] zero? rows rows
 			]
 			cursor [all [
 				1 <= row: port/state/position + rows
@@ -4331,8 +4393,7 @@ odbc: context [
 	][
 		dispatch 'at port [
 			statement [
-				rows: fetch-columns port/state 'at min length? port max 0 row
-				return-columns port/state rows
+				retrieve-columns port/state 'at min length? port max 0 row
 			]
 			cursor [all [
 				1 <= row
@@ -4352,8 +4413,7 @@ odbc: context [
 	][
 		dispatch 'head port [
 			statement [
-				rows: fetch-columns port/state 'head 0
-				return-columns port/state rows
+				retrieve-columns port/state 'head 0
 			]
 			cursor [
 				set-cursor port/state/statement 1
@@ -4388,8 +4448,7 @@ odbc: context [
 	][
 		dispatch 'back port [
 			statement [
-				rows: fetch-columns port/state 'back port/state/window
-				return-columns port/state rows
+				retrieve-columns port/state 'back port/state/window
 			]
 			cursor [
 				if 1 < row: port/state/position [
@@ -4409,8 +4468,7 @@ odbc: context [
 	][
 		dispatch 'next port [
 			statement [
-				rows: fetch-columns port/state 'next port/state/window
-				return-columns port/state rows
+				retrieve-columns port/state 'next port/state/window
 			]
 			cursor [
 				if (row: port/state/position) < length? port [
@@ -4430,8 +4488,7 @@ odbc: context [
 	][
 		dispatch 'tail port [
 			statement [
-				rows: fetch-columns port/state 'tail 0
-				return-columns port/state rows
+				retrieve-columns port/state 'tail 0
 			]
 			cursor [
 				set-cursor port/state/statement length? port
