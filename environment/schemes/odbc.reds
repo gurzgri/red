@@ -2723,11 +2723,10 @@ odbc: context [
 		stmfld-cursor
 		stmfld-sql
 		stmfld-params
-		stmfld-prms-status
 		stmfld-window
 		stmfld-cols
 		stmfld-columns
-		stmfld-rows-status
+		stmfld-status
 		stmfld-fetched
 		stmfld-access
 		stmfld-bookmarks?

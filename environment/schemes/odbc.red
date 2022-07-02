@@ -101,21 +101,20 @@ odbc: context [
 		errors:         []
 		flat?:          none
 		connection:     none
-		cursor:         none
-		sql:            none
+		cursor:         none                                                    ;-- cursor opened on statement
+		sql:            none                                                    ;-- sql string to execute
 		params:         []
-		prms-status:    none
 		window:         1024                                                    ;-- default window size
-		cols:           none
+		cols:           none                                                    ;-- number of columns
 		columns:        []
-		rows-status:    none
-		fetched:        none
+		status:         none                                                    ;-- row status buffer handle
+		fetched:        none                                                    ;-- number of rows in row set
 		access:        'forward
 		bookmarks?:     no
 		debug?:         off
 		timeout:        none
 		position:       none
-		length:         none
+		length:         none                                                    ;-- number of rows in result set
 
 		on-change*: func [word old new] [
 			switch/default word [
@@ -1192,15 +1191,15 @@ odbc: context [
 		rows:      block/rs-length? params
 		prms:      block/rs-length? as red-block! block/rs-head params          #if debug? = yes [print ["^-" rows " rows of " prms " params" lf]]
 
-																				#if debug? = yes [print ["^-allocate stat-buf, " rows * size? integer! " bytes"]]
-		stat-buf:  allocate rows * size? integer!                               #if debug? = yes [print [" @ " stat-buf lf]]
-		status:    handle/box as integer! stat-buf
+	;																			#if debug? = yes [print ["^-allocate stat-buf, " rows * size? integer! " bytes"]]
+	;	stat-buf:  allocate rows * size? integer!                               #if debug? = yes [print [" @ " stat-buf lf]]
+	;	status:    handle/box as integer! stat-buf
 
-		copy-cell as red-value! status                                          ;-- store pointer in statement
-		          vstm + odbc/stmfld-prms-status                                ;
+	;	copy-cell as red-value! status                                          ;-- store pointer in statement
+	;	          vstm + odbc/stmfld-prms-status                                ;
 
-		set-statement statement sql/attr-paramset-size    rows         0
-		set-statement statement sql/attr-param-status-ptr status/value 0
+		set-statement statement sql/attr-paramset-size    rows 0
+		set-statement statement sql/attr-param-status-ptr null 0
 
 		buffers: as red-block! vstm + odbc/stmfld-params
 
@@ -1812,7 +1811,7 @@ odbc: context [
 			vstm        [red-value!]
 	][                                                                          #if debug? = yes [print ["FREE-COLUMNS [" lf]]
 		vstm:  object/get-values statement
-		value: vstm + odbc/stmfld-rows-status
+		value: vstm + odbc/stmfld-status
 		if TYPE_OF(value) = TYPE_NONE [
 			exit                                                                ;-- exit early, no columns are bound
 		]
@@ -1821,7 +1820,7 @@ odbc: context [
 		free as byte-ptr! rowbuf/value
 
 		copy-cell none-value                                                    ;-- will force a column rebinding
-		          as red-value! vstm + odbc/stmfld-rows-status
+		          as red-value! vstm + odbc/stmfld-status
 
 		columns:  as red-block! vstm + odbc/stmfld-columns
 
@@ -2067,7 +2066,7 @@ odbc: context [
 			offset      [integer!]
 			rc          [integer!]
 			row-buf	    [byte-ptr!]
-			row-status  [red-handle!]
+			status      [red-handle!]
 			sql-type    [integer!]
 			value       [red-value!]
 			vstm        [red-value!]
@@ -2076,7 +2075,7 @@ odbc: context [
 		col-buf:     null
 
 		vstm:   object/get-values statement
-		value:                   vstm + odbc/stmfld-rows-status
+		value:                   vstm + odbc/stmfld-status
 		if TYPE_OF(value) = TYPE_HANDLE [                                       #if debug? = yes [print ["]" lf]]
 			exit                                                                ;-- exit early, columns are already bound
 		]
@@ -2091,10 +2090,10 @@ odbc: context [
 		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
-		row-status: handle/box as integer! row-buf                              #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
+		status: handle/box as integer! row-buf                                  #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
 
-		copy-cell as red-value! row-status                                      ;-- store pointer in statement
-		          vstm + odbc/stmfld-rows-status                                ;
+		copy-cell as red-value! status                                          ;-- store pointer in statement
+		          vstm + odbc/stmfld-status                                     ;
 
 		;-- statement attributes
 
@@ -2191,7 +2190,7 @@ odbc: context [
 			orient      [integer!]
 			rc          [integer!]
 			row         [integer!]
-			row-status  [red-handle!]
+			status      [red-handle!]
 			rowblk      [red-block!]
 			rows        [integer!]
 			rowset      [red-block!]
@@ -2225,7 +2224,7 @@ odbc: context [
 		columns:      as red-block! vstm + odbc/stmfld-columns
 		bookmarks:        logic/get vstm + odbc/stmfld-bookmarks?
 		window:         integer/get vstm + odbc/stmfld-window
-		row-status:  as red-handle! vstm + odbc/stmfld-rows-status              #if debug? = yes [print ["^-row-status = " as byte-ptr! row-status/value lf]]
+		status:      as red-handle! vstm + odbc/stmfld-status                   #if debug? = yes [print ["^-status = " as byte-ptr! status/value lf]]
 		debug:            logic/get vstm + odbc/stmfld-debug?                   #if debug? = yes [print ["^-window = " window lf]]
 
 		rowset:    block/push-only* window                                      #if debug? = yes [print ["^-rowset = " rowset lf]]
