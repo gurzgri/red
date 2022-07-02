@@ -109,7 +109,7 @@ odbc: context [
 		cols:           none
 		columns:        []
 		rows-status:    none
-		rows-fetched:   none
+		fetched:        none
 		access:        'forward
 		bookmarks?:     no
 		debug?:         off
@@ -823,7 +823,6 @@ odbc: context [
 		connection      [object!]
 		statement       [object!]
 		/local
-			fetched     [byte-ptr!]
 			hcon        [red-handle!]
 			rc          [integer!]
 			sqlhstm     [integer!]
@@ -834,11 +833,6 @@ odbc: context [
 		vstm:       object/get-values statement
 		hcon:       as red-handle! vcon + odbc/cmnfld-handle
 		sqlhstm:    0
-																				#if debug? = yes [print ["^-allocate fetched, " size? integer! " bytes"]]
-		fetched: allocate size? integer!                                        #if debug? = yes [print [" @ " fetched " " either fetched <> null ["ok."] ["failed!"] lf]]
-		if fetched = null [fire [
-			TO_ERROR(internal no-memory)
-		]]
 
 		ODBC_RESULT sql/SQLAllocHandle sql/handle-stmt
 		                               hcon/value
@@ -856,9 +850,6 @@ odbc: context [
 																				#if debug? = yes [print ["^-hstm/value = " sqlhstm lf]]
 		copy-cell as red-value! handle/box sqlhstm
 		          vstm + odbc/cmnfld-handle
-
-		copy-cell as red-value! handle/box as integer! fetched
-		          vstm + odbc/stmfld-rows-fetched
 																				#if debug? = yes [print ["]" lf]]
 	]
 
@@ -1748,31 +1739,6 @@ odbc: context [
 	]
 
 
-	;----------------------------------- fetched-rows --
-	;
-
-	fetched-rows: routine [
-		statement       [object!]
-		/local
-			fetched     [red-handle!]
-			rows        [int-ptr!]
-			value       [red-value!]
-			vstm        [red-value!]
-	][                                                                          #if debug? = yes [print ["FETCHED-ROWS [" lf]]
-		vstm:  object/get-values statement
-		value: vstm + odbc/stmfld-rows-fetched
-
-		SET_RETURN((either TYPE_OF(value) = TYPE_HANDLE [
-			fetched:    as red-handle! value
-			rows:       as int-ptr! fetched/value                               #if debug? = yes [print ["^-rows-fetched = " rows/value lf]]
-
-			integer/box rows/value
-		][                                                                      #if debug? = yes [print ["^-rows-fetched = none" lf]]
-			none-value
-		]))                                                                     #if debug? = yes [print ["]" lf]]
-	]
-
-
 	;---------------------------------- more-results? --
 	;
 
@@ -2095,7 +2061,6 @@ odbc: context [
 			col-buflen  [integer!]
 			col-slotlen [integer!]
 			columns     [red-block!]
-			fetched     [red-handle!]
 			hstm        [red-handle!]
 			len-buf     [int-ptr!]
 			len-buflen  [integer!]
@@ -2121,7 +2086,6 @@ odbc: context [
 		bookmarks:     logic/get vstm + odbc/stmfld-bookmarks?
 		cols:        integer/get vstm + odbc/stmfld-cols
 		columns:   as red-block! vstm + odbc/stmfld-columns
-		fetched:  as red-handle! vstm + odbc/stmfld-rows-fetched                ;-- number of rows fetched
 
 		row-buf:    allocate window * size? integer!
 		if row-buf = null [fire [
@@ -2136,7 +2100,6 @@ odbc: context [
 
 		set-statement statement sql/attr-row-bind-type    sql/bind-by-column 0  ;-- setting statement attributes
 		set-statement statement sql/attr-row-array-size   window             0  ;
-		set-statement statement sql/attr-rows-fetched-ptr fetched/value      0  ;
 
 		;-- bind columnns
 
@@ -2216,7 +2179,6 @@ odbc: context [
 			debug       [logic!]
 			digits      [integer!]
 			dt          [sql-date!]
-			fetched     [red-handle!]
 			flat?       [logic!]
 			flatval     [red-value!]
 			float-ptr   [struct! [int1 [integer!] int2 [integer!]]]
@@ -2245,6 +2207,7 @@ odbc: context [
 			vstm        [red-value!]
 			window      [integer!]
 	][                                                                          #if debug? = yes [print ["FETCH-COLUMNS [" lf]]
+		rows: 0
 		vstm:     object/get-values statement
 		hstm:        as red-handle! vstm + odbc/cmnfld-handle
 
@@ -2262,13 +2225,14 @@ odbc: context [
 		columns:      as red-block! vstm + odbc/stmfld-columns
 		bookmarks:        logic/get vstm + odbc/stmfld-bookmarks?
 		window:         integer/get vstm + odbc/stmfld-window
-		fetched:     as red-handle! vstm + odbc/stmfld-rows-fetched
 		row-status:  as red-handle! vstm + odbc/stmfld-rows-status              #if debug? = yes [print ["^-row-status = " as byte-ptr! row-status/value lf]]
 		debug:            logic/get vstm + odbc/stmfld-debug?                   #if debug? = yes [print ["^-window = " window lf]]
 
 		rowset:    block/push-only* window                                      #if debug? = yes [print ["^-rowset = " rowset lf]]
 		cols:     (block/rs-length? columns) / odbc/colfld-fields               #if debug? = yes [print ["^-cols = " cols lf]]
 		sym:       symbol/resolve orientation/symbol                            #if debug? = yes [print ["^-sym = " sym lf]]
+
+		set-statement statement sql/attr-rows-fetched-ptr as integer! :rows 0
 
 		orient:    case [
 			sym = odbc/_all  [sql/fetch-next]
@@ -2295,9 +2259,6 @@ odbc: context [
 			if any [ODBC_ERROR ODBC_EXECUTING] [fire [
 				TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 			]]
-
-			int-ptr: as int-ptr! fetched/value
-			rows:    int-ptr/value                                              #if debug? = yes [print ["^-fetched = " as byte-ptr! fetched/value " => " rows " = rows " lf]]
 
 			if debug [                                                          ;-- NOTE: not compile-time debugging here
 				col: 0
@@ -2474,6 +2435,9 @@ odbc: context [
 				row: row + 1
 			] ; loop rows
 
+			copy-cell as red-value! integer/box rows                             ;-- FIXME: in fact, this belongs into cursor/state
+			          vstm + odbc/stmfld-fetched
+
 			unless sym = odbc/_all [break]
 		]
 
@@ -2636,7 +2600,6 @@ odbc: context [
 	close-statement: routine [
 		statement       [object!]
 		/local
-			fetched     [byte-ptr!]
 			hstm        [red-handle!]
 			rc          [integer!]
 			redhnd      [red-handle!]
@@ -2644,12 +2607,6 @@ odbc: context [
 	][                                                                          #if debug? = yes [print ["CLOSE-STATEMENT [" lf]]
 		vstm:       object/get-values statement
 		hstm:       as red-handle! vstm + odbc/cmnfld-handle
-		redhnd:     as red-handle! vstm + odbc/stmfld-rows-fetched
-
-		fetched:    as byte-ptr! redhnd/value
-		if fetched <> null [                                                    #if debug? = yes [print ["^-free fetched @ " fetched]]
-			free fetched                                                        #if debug? = yes [print [" ok." lf]]
-		]
 
 		ODBC_RESULT sql/SQLFreeHandle sql/handle-stmt hstm/value                #if debug? = yes [print ["^-SQLFreeHandle " rc lf]]
 
@@ -4283,7 +4240,7 @@ odbc: context [
 	][
 		dispatch 'length? port [
 			statement [ port/state/length ]
-			cursor    [ fetched-rows cursor/state/statement ]
+			cursor    [ port/state/statement/fetched ]
 		]
 	]
 

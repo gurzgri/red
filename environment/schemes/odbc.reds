@@ -2728,7 +2728,7 @@ odbc: context [
 		stmfld-cols
 		stmfld-columns
 		stmfld-rows-status
-		stmfld-rows-fetched
+		stmfld-fetched
 		stmfld-access
 		stmfld-bookmarks?
 		stmfld-debug?
