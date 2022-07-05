@@ -25,6 +25,7 @@ odbc: context [
 		handle:         none
 		errors:         []
 		flat?:          no
+		names?:         no
 		count:          0
 		connections:    []
 		timeout:        none
@@ -51,6 +52,9 @@ odbc: context [
 				flat? [unless logic? new [flat?: old
 					cause-error 'script 'expect-type ['the 'flat? logic!]
 				]]
+				names? [unless logic? new [names?: old
+					cause-error 'script 'expect-type ['the 'names? logic!]
+				]]
 			][
 				set-quiet word old
 				cause-error 'script 'locked-word [word]
@@ -64,6 +68,7 @@ odbc: context [
 		handle:         none
 		errors:         []
 		flat?:          none
+		names?:         none
 		environment:    none
 		statements:     []
 		commit?:        yes
@@ -87,6 +92,10 @@ odbc: context [
 					flat?: old
 					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
 				]]
+				names? [unless find [logic! none!] type?/word new [
+					names?: old
+					cause-error 'script 'expect-type ['the 'names? [logic! | none!]]
+				]]
 			][
 				set-quiet word old
 				cause-error 'script 'locked-word [word]
@@ -100,6 +109,7 @@ odbc: context [
 		handle:         none
 		errors:         []
 		flat?:          none
+		names?:         none
 		connection:     none
 		cursor:         none                                                    ;-- cursor opened on statement
 		sql:            none                                                    ;-- sql string to execute
@@ -133,6 +143,10 @@ odbc: context [
 				flat? [unless find [logic! none!] type?/word new [
 					flat?: old
 					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
+				]]
+				names? [unless find [logic! none!] type?/word new [
+					names?: old
+					cause-error 'script 'expect-type ['the 'names? [logic! | none!]]
 				]]
 				debug? [unless logic? new [
 					debug?: old
@@ -2764,14 +2778,22 @@ odbc: context [
 		;-- translate and instert column names as word
 		;   in description block, return the words only
 
-		new-line/all collect [until [
-			change* columns keep any [
-				attempt [to word! as-column column: second columns]
-				column
-			]
-			new-line columns on
-			tail?* columns: skip* columns 10                                    ;-- odbc/colfld-fields
-		]] off
+		either first trim reduce [
+			statement/names?
+			statement/connection/names?
+			environment/names?
+		][
+			extract/index statement/columns 10 2                                ;-- odbc/colfld-fields, colfld-name
+		][
+			new-line/all collect [until [
+				change* columns keep any [
+					attempt [to word! as-column column: second columns]
+					column
+				]
+				new-line columns on
+				tail?* columns: skip* columns 10                                ;-- odbc/colfld-fields
+			]] off
+		]
 	]
 
 

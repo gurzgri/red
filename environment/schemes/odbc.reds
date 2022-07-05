@@ -2709,17 +2709,18 @@ odbc: context [
 		cmnfld-handle
 		cmnfld-errors
 		cmnfld-flat?
+		cmnfld-names?
 
-		envfld-count:               5
+		envfld-count:               6
 		envfld-connections
 		envfld-timeout
 
-		confld-environment:         5
+		confld-environment:         6
 		confld-statements
 		confld-commit
 		confld-catalog
 
-		stmfld-connection:          5
+		stmfld-connection:          6
 		stmfld-cursor
 		stmfld-sql
 		stmfld-params
@@ -2747,7 +2748,7 @@ odbc: context [
 		colfld-lenbuf
 		colfld-fields
 
-		csrfld-statement:           5
+		csrfld-statement:           6
 		csrfld-position
 	]
 
