@@ -231,20 +231,21 @@ while [not empty? rowset: next statement] [
 ]
 ```
 
-To get the most out of that approach, ***before*** executing the
-statement set the statements' `state/window` to
-the number of rows that will best suit your needs:
+To get the most out of that approach, set `statement/state/window` to the number of rows that will best suit your needs:
 
 ```Red
-change statement [window: 1'000]        ;-- or statement/state/window: 1'000
+change statement [window: 1'000]
 insert statement ["SELECT * FROM earthlings WHERE country = ?" "USA"]
 ```
 
-Or, as a shortcut to this, use `insert/part` to set the rowset size:
+It *is* possible to change the window size between two fetches with `next`.
+
+And as a shortcut to setting the rowset window before executing a statement, there `insert/part`:
 
 ```Red
 insert/part statement ["SELECT * FROM earthlings WHERE country = ?" "USA"] 1'000
 ```
+
 
 Finally, note that a `copy` following one or more `next`s won't return the
 complete result set, but will only return the rows of the remaining rowsets in
@@ -256,39 +257,57 @@ By default, each row of a rowset will be returned in its own block. That is
 often very convenient, but it's not the optimal solution when handling large
 volumnes of data.
 
-To retrieve results in flat fashion, on scheme, connection or statement levelset
+To retrieve results in flat fashion, on scheme, connection or statement level set
 
 ```Red
-system/schemes/odbc/state/flat?: yes
-
-change connection [flat?: yes]          ;-- or connection/state/flat?: yes
-change statement  [flat?: yes]          ;       statement/state/flat?: yes
+system/schemes/odbc/state/flat?: true
 ```
-
-On statement and connection level, `flat?` my be set to `true` or `false` or
-may be set to `none` to delegate the decision from the statement to the connection and from there to the scheme.
-
-## Cursors
-
-To use a curser on a statement, prior to executing it with `insert` set its
-`access` state to either `static` or `dynamic`:
-
 ```Red
-change statement [access: 'static]      ;-- or statement/state/access: 'static
-insert statement "SELECT ..."
+change connection [flat?: true]
+```
+```Red
+change statement  [flat?: true]
 ```
 
-With that in place, you can not only retrieve rowsets with `copy` (all rows) or
-`next` (next rowset), but with `head` (first rowset), `back` (previous rowset)
+On statement, connection and scheme level, `flat?` may be set to `true` or `false`. On statement and connection level it
+can also be set to `none` to delegate the decision from the statement to the connection and from the connection to the scheme.
+
+## Positioning the Current Rowset ("Paging")
+
+Instead of retrieving a result set as a whole with `copy` (all rows),
+it can be retrieved in parts with `next` (first rowset if no rowset has been fetched before, next rowset otherwise).
+
+Provided the datasource you connect to allows it, with
+```Red
+change statement [access: 'static]    ;-- or 'dynamic
+```
+prior to executing it with `insert`, you can move back and
+forth to arbitrary rowsets in the result set with `head` (first rowset), `back` (previous rowset)
 and `tail` (last rowset), too.
 
-Additionally, you can position the cursor either ***relative*** to the first
-row in the current rowset with `skip` and position it ***absolute*** in the
-result set with `at`.
+Additionally, you can do *relative* movements with `skip` and *absolute* movements with `at`.
 
-To check for cursor position, use `head?`, `tail?` and `index?`.
 
-Note however that due to the way in which ODBC implements cursors, the
+```Red
+rowets: head statement
+rowset: next statement
+rowset: back statement
+rowset: tail statement
+```
+```Red
+rowset:   at statement <position>
+rowset: skip statement <offset>
+```
+
+To check for the current position of the rowset in the result set, use `head?`, `tail?` and `index?`:
+
+```Red
+ head? statement
+ tail? statement
+index? statement
+```
+
+Note however that due to the way in which ODBC implements result sets, the
 semantics and behaviour of these functions somewhat differs from the usual
 behaviour with "normal" series in Red.
 
@@ -309,67 +328,130 @@ as it does with series.
 lesser-or-equal than *r* will return a rowset of *r* rows, starting with row 1.
 In other words, it will "overlap" the previous rowset.
 
-## Deferred Retrieval of TEXT and BLOB Columns with Cursors
+## Positioning the Current Row with a Cursor
 
-You may have to deal with special columns of type TEXT and BLOB for long texts
-and binary large objects like e.g. image data. Such columns can be read too, but are treated as `deferred` values and can't be fetched immediatly
-with normal `copy`.
+You can open a cursor on a statement to move from row to row  in the current rowset:
 
-So instead of
+```Red
+cursor: open statement
+```
+
+> **Hint:** Most of the time you won't need cursors at all.<p>
+> Cursors only come into play when you work with rowsets
+> of size > 1 (i.e. when `statement/state/window > 1`) together
+> with BLOB and CLOB columns too big to account for their
+> maximal size with `statement/state/limit`.<p>
+> In these cases a cursor can be positioned on a particlular
+> row and BLOBs and CLOBs can then be `pick`ed from there.
+
+Right after fetching a rowset, the cursor will be positioned before the first row in this rowset.
+
+Move it to a particular row with
+
+```Red
+head cursor     ;-- first row in rowset
+next cursor     ;-- next      -"-
+back cursor     ;-- prev      -"-
+tail cursor     ;-- last      -"-
+```
+```Red
+  at cursor <position>
+skip cursor <offset>
+```
+To check for the current position in the rowset, use `head?`, `tail?` and `index?` on the cursor:
+
+```Red
+ head? cursor
+ tail? cursor
+index? cursor
+```
+
+Note however, that you can't move to a row *outside* of the current rowset. For that you'll have to advance the rowset itself on the statement as described in the previous section.
+
+
+## BLOB and CLOB Columns
+
+Sometimes you'll have to deal with BLOB and CLOB columns (binary/character large objects) for things like e.g. image data and documents.
+
+Such columns are fetched too, but due to their size chances are that they'll be fetched only *partially* because it wasn't
+possible to allocate a buffer big enough for them in advance.
+
+How many 'preview' bytes of a BLOB and how many characters of a CLOB
+are retrieved, can be configured with
+
+```Red
+change statement [limit: 8096]    ;-- only first 8096 bytes/chars
+```
+
+To retrieve BLOBs/CLOBs above that limit, instead of the default way
 
 ```Red
 photos: open album: open odbc://album
-select photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
+select photos "SELECT FileName, Image, Thumbnail FROM Photos"
 == [file-name image thumbnail]
-images: copy photos
+images: next photos
 == [
-   ["Me at the beach.jpg" deferred deferred]
-   ["Me in the snow.jpg" deferred deferred]
-   ["Me in the woods.jpg" deferred deferred]
+   ["Me at the beach.jpg" #{FFD8FFE0...} #{FFD8FFE0...}]
+   ["Me in the snow.jpg"  #{FFD8FFE0...} #{FFD8FFE0...}]
+   ["Me in the woods.jpg" #{FFD8FFE0...} #{FFD8FFE0...}]
    ...
 ```
 
-you'll have to fetch column values marked as `deferred` with the help of a cursor and `pick` each single value individually:
+you'll have to `pick` each single value individually:
 
 ```Red
 photos: open album: open odbc://album [access: 'static]
-change photos [
-    access: 'static                 ;-- or 'dynamic
-    window: 1
-]
-insert photos "SELECT FileName, Image, Thumbnail FROM Photos LIMIT 1000"
+change photos [access: 'static window: 100]
+cursor: open photos
+select photos "SELECT FileName, Image, Thumbnail FROM Photos"
 == [file-name image thumbnail]
-images: next photos                 ;-- retrieve first row
+images: next photos
 == [
-    ["Me at the beach.jpg" deferred deferred]
+   ["Me at the beach.jpg" #{FFD8FFE0...} #{FFD8FFE0...}]
+   ["Me in the snow.jpg"  #{FFD8FFE0...} #{FFD8FFE0...}]
+   ["Me in the woods.jpg" #{FFD8FFE0...} #{FFD8FFE0...}]
+   ...
 ]
-picture: pick photos 'image
+at cursor 47
+image: pick cursor 'image
 == #{
 FFD8FFE000104A46494600010101004800480000FFE11B764578696600004D4D
 002A00000008000D010F000200000006000000AA0110000200000009000000B0
 01120003000000010003...
-thumbnail: pick photos 'thumbnail
+thumbnail: pick cursor 'thumbnail
 == #{
 FFD8FFE000104A46494600010101004800480000FFE119584578696600004D4D
 002A00000008000D010F000200000006000000AA0110000200000009000000B0
 01120003000000010008...
-
-images: next photos                 ;-- fetch next rowset (of 1 row)
 ```
 
-You can only pick from columns with the `deferred` placeholder
-in the row returned and due to ODBC restrictions the row has to be fetched first.
+You can only `pick` from BLOB/CLOB columns and due to ODBC restrictions the rowset containing the row has to be fetched first.
 
-After that, you can `pick` the desired TEXT or BLOB column by either
-the name of the column word or by column number.
-If there is more than one TEXT or BLOB column in the result set retrieved,
-one has to pick them from left to right due to restrictions ODBC imposes.
+After that, you can `pick` the desired BLOB or CLOB column by either the column word, column name string or column number.
+
+Depending on the datasource you connect to, if there is more than one BLOB/CLOB column in the result set retrieved,
+you have to pick them from left to right due to restrictions ODBC imposes.
 
 That means that in the example above you can not first
-`pick photos 'thumbnail` and then `pick photos 'image`
-from the same column. Of course you aren't required to fetch *all* columns, yo can leave out columns you're not interested in.
+`pick cursor 'thumbnail` and then `pick cursor 'image`
+from the same column. But you are not required to fetch *all* BLOB/CLOB columns, you can leave out BLOBs/CLOBs you're not interested in.
 
-The values returned will always be either of type `string!` or of type `binary!`.
+The values returned will always be of either type `string!` or of type `binary!`.
+
+> As a shortcut to the above, if you work with window/rowset size 1 as in
+> ```Red
+> change photos [window: 1]
+> ```
+> you won't need an explicitly `open`ed cursor. You can
+> then `pick` directly from the statement as in
+> ```Red
+> pick photos 'image
+> pick photos 'thumbnail
+> ```
+> instead .
+
+
+
 
 ## Deleting Rows with Cursors
 
@@ -423,7 +505,37 @@ connection/state/info/"param-array-selects"    ;-- one of 'batch, 'no-batch or '
 
 For further reference, see [Microsoft SQL Docs: Multiple Results](https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/multiple-results?view=sql-server-ver15).
 
-# Parameter Arrays
+# Statement Parameters
+As you have seen already, statement parameters are supported. To use them,
+instead of just supplying a statement string supply a block to `insert`.
+The statement string has to be the first item in the block. Parameter values
+follow as applicable:
+
+```Red
+insert statement ["SELECT Column FROM Table WHERE Id BETWEEN ? AND ?" 6 10]
+```
+
+Note that the block supplied will be reduced automatically:
+
+```Red
+set [lower upper] [6 10]
+insert statement [
+    "SELECT Column FROM Table WHERE Id BETWEEN ? AND ?"
+    lower upper
+]
+```
+
+The datatypes supported as parameters so far are:
+
+- any-string!
+- integer!
+- logic!
+- float!
+- date! (with or without time!)
+- time! (no fractions of seconds)
+- binary!
+
+## Parameter Arrays
 
 So far we've already seen statements with parameters as in
 
@@ -451,7 +563,9 @@ NOTE 2: If you only have one parameter set, then `insert ["..." 1 "Dopey"]` is
 just a shorter form for `insert ["..." [1 "Dopey"]]`.
 
 
-## Column Names
+# Column Names
+
+## Column Names as Words
 
 As you have seen, for SELECT statements, `insert` returns
 a block of column names as [kebap-cased](https://en.wiktionary.org/wiki/kebab_case)
@@ -460,7 +574,7 @@ Red words instead of their original names in the database.
 That way it's easy to keep your Red code in sync with your SQL statements:
 
 ```Red
-columns: insert statement ["SELECT ID, Title FROM Film"]
+columns: insert statement ["SELECT ID, Category, Title FROM Film"]
 == [id category title]
 foreach :columns copy statement [print [id title]]
 1 A Kung Fu Hangman
@@ -478,11 +592,33 @@ insert statement [{SELECT ID, "Playing Now", "Tickets Sold", Title FROM Film}]
 
 your retrieval code will still work without any modifications.
 
-However, the original column names, too, are available in the statements meta
-data at `statement/state/columns` together with other housekeeping stuff you're
-not supposed to modify in any way.
+## Column Names as Strings
 
-## Prepared Statements
+To retrieve column names as strings, on scheme, connection or statement level set
+
+```Red
+system/schemes/odbc/state/names?: true
+```
+
+```Red
+change connection [names?: true]
+```
+
+
+```Red
+change statement [names?: true]
+```
+
+On statement, connection and scheme level, `names?` may be set to `true` or `false`. On statement and connection level it
+can also be set to `none` to delegate the decision from the statement to the connection and from the connection to the scheme.
+
+With `names?: true`, columns will be returned as
+```Red
+columns: insert statement ["SELECT ID, Category, Title FROM Film"]
+== ["ID" "Category" "Title"]
+```
+
+# Preparing Statements
 Often, you'll find yourself executing the same SQL statements again and again.
 The ODBC scheme therefor will automatically prepare a statement for later reuse
 (i.e. execution), which saves the ODBC driver and your database the effort to
@@ -536,37 +672,7 @@ insert statement [products  5]      ;-- again, preparation and execution
 To prepare multiple statements, just `open` one statement per SQL string
 instead of inserting different SQL strings into the same statement.
 
-## Statement Parameters
-As you have seen already, statement parameters are supported. To use them,
-instead of just supplying a statement string supply a block to `insert`.
-The statement string has to be the first item in the block. Parameter values
-follow as applicable:
-
-```Red
-insert statement ["SELECT Column FROM Table WHERE Id BETWEEN ? AND ?" 6 10]
-```
-
-Note that the block supplied will be reduced automatically:
-
-```Red
-set [lower upper] [6 10]
-insert statement [
-    "SELECT Column FROM Table WHERE Id BETWEEN ? AND ?"
-    lower upper
-]
-```
-
-The datatypes supported as parameters so far are:
-
-- any-string!
-- integer!
-- logic!
-- float!
-- date! (with or without time!)
-- time! (no fractions of seconds)
-- binary!
-
-## Datatype Conversions
+# Datatype Conversions
 If the built in automatic type conversion for data retrieval doesn't fit your
 needs, you may cast values to different types in your SQL statement:
 
@@ -624,7 +730,7 @@ insert connection [native "SELECT * FROM test.csv WHERE year = 2022"]
 
 Note that this operates on a connection, not on a statement.
 
-## State Information
+# State Information
 
 Once opened, a whole whealth of information about connection and statement ports is available with `query`:
 
