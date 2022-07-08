@@ -180,6 +180,7 @@ odbc: context [
 		handle:         none
 		errors:         none                                                    ;-- unused commons
 		flat?:          none                                                    ;
+		names?:         none                                                    ;
 		statement:      none
 		position:       0
 
