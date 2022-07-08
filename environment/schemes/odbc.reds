@@ -7,6 +7,8 @@ Red/System [
 	License: 'Unlicensed
 ]
 
+#include %heap.reds
+
 #switch OS [
 
 	Windows [
@@ -2680,7 +2682,8 @@ sql: context [
 ;---------------------------------------- ODBC macros --
 ;
 
-#define ODBC_RESULT     [rc: FFFFh and]
+#define ODBC_RESULT(call)   [            rc: FFFFh and call           ]
+#define ODBC_SHIELD(call)   [𝐕alidBefore rc: FFFFh and call 𝐕alidAfter]
 
 #define ODBC_SUCCESS    [rc = sql/success]
 #define ODBC_INFO       [rc = sql/success-with-info]
@@ -2734,6 +2737,7 @@ odbc: context [
 		stmfld-debug?
 		stmfld-timeout
 		stmfld-position
+		stmfld-limit
 		stmfld-length
 
 		colfld-word:                0
@@ -2896,20 +2900,20 @@ odbc: context [
 			vent        [red-value!]
 	][                                                                          #if debug? = yes [print ["DIAGNOSE-ERROR [" lf]]
 		allocating: [
-			if state = null [                                                   #if debug? = yes [print ["^-allocate state, " 5 + 1 << 1 " bytes"]]
-				state:   allocate 5 + 1 << 1                                    #if debug? = yes [print [" @ " state " " either state <> null ["ok."] ["failed!"] lf]]
+			if state = null [                                                   #if debug? = yes [print ["^-𝐀llocate state, " 5 + 1 << 1 " bytes"]]
+				state:   𝐀llocate 5 + 1 << 1                                    #if debug? = yes [print [" @ " state " " either state <> null ["ok."] ["failed!"] lf]]
 			]
-			if msg-buf = null [                                                 #if debug? = yes [print ["^-allocate msg-buf, " msg-buflen + 1 << 1 " bytes"]]
-				msg-buf: allocate msg-buflen + 1 << 1                           #if debug? = yes [print [" @ " msg-buf " " either msg-buf <> null ["ok."] ["failed!"] lf]]
+			if msg-buf = null [                                                 #if debug? = yes [print ["^-𝐀llocate msg-buf, " msg-buflen + 1 << 1 " bytes"]]
+				msg-buf: 𝐀llocate msg-buflen + 1 << 1                           #if debug? = yes [print [" @ " msg-buf " " either msg-buf <> null ["ok."] ["failed!"] lf]]
 			]
 		]
 		freeing: [
-			if state <> null [                                                  #if debug? = yes [print ["^-free state @ " state]]
-				free state                                                      #if debug? = yes [print [" ok." lf]]
+			if state <> null [                                                  #if debug? = yes [print ["^-𝐅ree state @ " state]]
+				𝐅ree state                                                      #if debug? = yes [print [" ok." lf]]
 				state: null
 			]
-			if msg-buf <> null [                                                #if debug? = yes [print ["^-free msg-buf @ " msg-buf]]
-				free msg-buf                                                    #if debug? = yes [print [" ok." lf]]
+			if msg-buf <> null [                                                #if debug? = yes [print ["^-𝐅ree msg-buf @ " msg-buf]]
+				𝐅ree msg-buf                                                    #if debug? = yes [print [" ok." lf]]
 				msg-buf: null
 			]
 		]
@@ -2940,14 +2944,14 @@ odbc: context [
 					break                                                       ;
 				]
 
-				ODBC_RESULT sql/SQLGetDiagRec handle-type
+				ODBC_RESULT((sql/SQLGetDiagRec handle-type
 											  handle
 											  record-num
 											  state
 											 :native
 											  msg-buf
 											  msg-buflen
-											 :msg-len                           #if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
+											 :msg-len))                         #if debug? = yes [print ["^-SQLGetDiagRec " rc lf]]
 				if all [
 					ODBC_INFO
 					msg-buflen < msg-len
