@@ -2437,7 +2437,11 @@ odbc: context [
 							sql-type = sql/varbinary
 							sql-type = sql/binary
 						][
-							binary/load-in col-slot len-slot/value rowblk
+							either len-slot/value > col-slotlen [               ;-- FIXME: discovered first with SQLite driver with BLOB col-size = 255
+								binary/load-in col-slot col-slotlen    rowblk
+							][
+								binary/load-in col-slot len-slot/value rowblk
+							]
 						]
 						sql-type = sql/type-date [
 							dt: as sql-date! col-slot
@@ -2554,10 +2558,18 @@ odbc: context [
 			any [
 				sql-type = sql/wlongvarchar
 				sql-type = sql/longvarchar
+				sql-type = sql/wvarchar
+				sql-type = sql/varchar
+				sql-type = sql/wchar
+				sql-type = sql/char
 			][
 				c-type: sql/c-wchar
 			]
-			sql-type = sql/longvarbinary [
+			any [
+				sql-type = sql/longvarbinary
+				sql-type = sql/varbinary
+				sql-type = sql/binary
+			][
 				c-type: sql/c-binary
 			]
 			true [
@@ -2624,7 +2636,13 @@ odbc: context [
 																				#if debug? = yes [print ["^-𝐅ree val-buf @ " val-buf]]
 		𝐅ree val-buf                                                            #if debug? = yes [print [" ok." lf]]
 
-		either sql-type <> sql/longvarbinary [
+		either any [
+			sql-type = sql/longvarbinary
+			sql-type = sql/varbinary
+			sql-type = sql/binary
+		][
+			SET_RETURN(redbin)
+		][
 			redstr:     as red-string! as red-value! redbin
 			set-type    as red-value! redstr TYPE_STRING
 
@@ -2632,8 +2650,6 @@ odbc: context [
 			series/flags:   series/flags and flag-unit-mask or UCS-2
 
 			SET_RETURN(redstr)
-		][
-			SET_RETURN(redbin)
 		]
 		                                                                        #if debug? = yes [print ["]" lf]]
 	]
