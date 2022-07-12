@@ -85,7 +85,7 @@ Red/System []
 		fire [TO_ERROR(internal no-memory)]
 	]
 
-	return 𝐌emory/HeapAlloc 𝐌emory/Heap 0 bytes
+	return 𝐌emory/HeapAlloc 𝐌emory/Heap 8 bytes                                ;-- HEAP_ZERO_MEMORY
 ]
 
 𝐅ree: func [
