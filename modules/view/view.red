@@ -481,6 +481,13 @@ face!: object [				;-- keep in sync with facet! enum
 					word: 'text							;-- force text refresh
 				]
 			]
+			
+			all [
+				word = 'selected
+				block? data
+				find [drop-list drop-down text-list field area] type
+				set-quiet 'text pick data selected
+			]
 
 			system/reactivity/check/only self any [saved word]
 
@@ -1002,6 +1009,7 @@ insert-event-func: function [
 	"Add a function to monitor global events. Return the function"
 	fun [block! function!] "A function or a function body block"
 ][
+	if find/same system/view/handlers :fun [return none]
 	if block? :fun [fun: do [function copy [face event] fun]]	;@@ compiler chokes on 'function call
 	insert system/view/handlers :fun
 	:fun
@@ -1100,17 +1108,30 @@ insert-event-func [
 				all [flags append flags 'all-over]
 				'all-over
 			]
-			do-actor face event 'drag-start
-			face/state/4: event/offset
+			set/any 'result do-actor face event 'drag-start
+			unless all [
+				object? :result
+				[min max] = words-of result
+				pair? result/min
+				pair? result/max
+			][
+				result: none
+			]
+			face/state/4: reduce [event/offset any [result face/options/bounds]]
 			unless system/view/auto-sync? [show face]
 		][
-			if drag-offset: face/state/4 [
+			if drag-info: face/state/4 [
 				either type = 'over [
 					unless event/away? [
-						new: face/offset + event/offset - drag-offset
+						new: face/offset + event/offset - drag-info/1
 						if face/offset <> new [
-							result: none				;-- for local context capturing
-							face/offset: new
+							if box: drag-info/2 [
+								if new/x < box/min/x [new/x: box/min/x]
+								if new/x > box/max/x [new/x: box/max/x]
+								if new/y < box/min/y [new/y: box/min/y]
+								if new/y > box/max/y [new/y: box/max/y]
+							]
+							if face/offset <> new [face/offset: new]
 							set/any 'result do-actor face event 'drag ;-- avoid calling on-over actor
 							unless system/view/auto-sync? [show face]
 							return :result

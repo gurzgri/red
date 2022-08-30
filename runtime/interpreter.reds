@@ -15,46 +15,49 @@ Red/System [
 		next < end
 		TYPE_OF(next) = TYPE_WORD
 	][
-		value: _context/get next
-		if TYPE_OF(value) = TYPE_OP [
-			either next = as red-word! pc [
-				#if debug? = yes [if verbose > 0 [log "infix detected!"]]
-				infix?: yes
-			][
-				lit?: all [								;-- is a literal argument expected?
-					any [TYPE_OF(pc) = TYPE_WORD TYPE_OF(pc) = TYPE_FUNCTION]
-					literal-first-arg? as red-native! value ;-- left operand is a literal argument
-					next + 1 < end						;-- disable infix detection if no right operand #3840
-				]
-				either lit? [
+		ctx: TO_CTX(next/ctx)
+		if ctx/values <> null [
+			value: _context/get next
+			if TYPE_OF(value) = TYPE_OP [
+				either next = as red-word! pc [
 					#if debug? = yes [if verbose > 0 [log "infix detected!"]]
 					infix?: yes
 				][
-					if TYPE_OF(pc) = TYPE_WORD [
-						left: _context/get as red-word! pc
+					lit?: all [								;-- is a literal argument expected?
+						any [TYPE_OF(pc) = TYPE_WORD TYPE_OF(pc) = TYPE_FUNCTION]
+						literal-first-arg? as red-native! value ;-- left operand is a literal argument
+						next + 1 < end						;-- disable infix detection if no right operand #3840
 					]
-					unless any [
-						all [
-							TYPE_OF(pc) = TYPE_FUNCTION
-							literal-first-arg? as red-native! pc   ;-- a literal argument is expected
-						]
-						all [
-							TYPE_OF(pc) = TYPE_WORD
-							any [								   ;-- left operand is a function call
-								TYPE_OF(left) = TYPE_ACTION
-								TYPE_OF(left) = TYPE_NATIVE
-								TYPE_OF(left) = TYPE_FUNCTION
-							]
-							literal-first-arg? as red-native! left ;-- a literal argument is expected
-						]
-					][
+					either lit? [
 						#if debug? = yes [if verbose > 0 [log "infix detected!"]]
 						infix?: yes
+					][
+						if TYPE_OF(pc) = TYPE_WORD [
+							left: _context/get as red-word! pc
+						]
+						unless any [
+							all [
+								TYPE_OF(pc) = TYPE_FUNCTION
+								literal-first-arg? as red-native! pc   ;-- a literal argument is expected
+							]
+							all [
+								TYPE_OF(pc) = TYPE_WORD
+								any [								   ;-- left operand is a function call
+									TYPE_OF(left) = TYPE_ACTION
+									TYPE_OF(left) = TYPE_NATIVE
+									TYPE_OF(left) = TYPE_FUNCTION
+								]
+								literal-first-arg? as red-native! left ;-- a literal argument is expected
+							]
+						][
+							#if debug? = yes [if verbose > 0 [log "infix detected!"]]
+							infix?: yes
+						]
 					]
 				]
-			]
-			if infix? [
-				if next + 1 = end [fire [TO_ERROR(script no-op-arg) next]]
+				if infix? [
+					if next + 1 = end [fire [TO_ERROR(script no-op-arg) next]]
+				]
 			]
 		]
 	]
@@ -251,7 +254,7 @@ interpreter: context [
 		]
 		stack/push ref									;-- reference (word, path,...)
 		pair/push base top								;-- frame (pair!)
-		if positive? fun-locs [_function/init-locals 1 + fun-locs]	;-- +1 for /local refinement
+		if positive? fun-locs [_function/init-locals fun-locs]
 
 		tracing?: no
 		catch RED_THROWN_ERROR [_function/call trace-fun ctx as red-value! words/_interp-cb CB_INTERPRETER]
@@ -539,6 +542,7 @@ interpreter: context [
 			next	[red-word!]
 			left	[red-value!]
 			fun		[red-function!]
+			ctx		[red-context!]
 			blk		[red-block!]
 			slot	[red-value!]
 			arg		[red-value!]
@@ -947,7 +951,7 @@ interpreter: context [
 			arg: either all [set? tail?][stack/arguments][null]
 			parent: actions/eval-path parent value arg path case? get? tail?
 			
-			unless get? [
+			if all [not get? not set?][
 				switch TYPE_OF(parent) [
 					TYPE_ACTION							;@@ replace with TYPE_ANY_FUNCTION
 					TYPE_NATIVE
@@ -1075,6 +1079,7 @@ interpreter: context [
 		/local
 			saved  [red-value! value]
 			next   [red-word!]
+			ctx	   [red-context!]
 			value  [red-value!]
 			left   [red-value!]
 			pos    [red-value!]

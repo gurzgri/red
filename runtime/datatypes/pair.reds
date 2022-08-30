@@ -314,7 +314,7 @@ pair: context [
 	]
 
 	round: func [
-		value		[red-value!]
+		pair		[red-pair!]
 		scale		[red-integer!]
 		_even?		[logic!]
 		down?		[logic!]
@@ -324,28 +324,33 @@ pair: context [
 		half-ceil?	[logic!]
 		return:		[red-value!]
 		/local
-			pair	[red-pair!]
-			_pad3	[integer!]
-			_pad2	[integer!]
-			_pad1	[integer!]
-			header	[integer!]
-			val		[red-integer!]
+			int		[red-integer!]
+			value	[red-value!]
+			p		[red-pair!]
+			scalexy?[logic!]
+			y		[integer!]
 	][
 		if TYPE_OF(scale) = TYPE_MONEY [
 			fire [TO_ERROR(script not-related) stack/get-call datatype/push TYPE_MONEY]
 		]
+		scalexy?: all [OPTION?(scale) TYPE_OF(scale) = TYPE_PAIR]
+		if scalexy? [
+			p: as red-pair! scale
+			y: p/y
+			scale/header: TYPE_INTEGER
+			scale/value: p/x
+		]
 		
-		pair: as red-pair! value
-		header: TYPE_INTEGER
-		val: as red-integer! :header
-		val/value: pair/x
-		pair/x: get-value-int as red-integer!
-				integer/round as red-value! val scale _even? down? half-down? floor? ceil? half-ceil?
-		header: TYPE_INTEGER
-		val/value: pair/y
-		pair/y: get-value-int as red-integer!
-				integer/round as red-value! val scale _even? down? half-down? floor? ceil? half-ceil?
-		value
+		int: integer/push pair/x
+		value: integer/round as red-value! int scale _even? down? half-down? floor? ceil? half-ceil?
+		pair/x: get-value-int as red-integer! value
+		
+		if scalexy? [scale/value: y]
+		int/value: pair/y
+		value: integer/round as red-value! int scale _even? down? half-down? floor? ceil? half-ceil?
+		pair/y: get-value-int as red-integer! value
+		
+		as red-value! pair
 	]
 
 	remainder: func [return: [red-value!]][

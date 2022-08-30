@@ -593,7 +593,7 @@ system/view/VID: context [
 		while [all [global? not tail? spec]][			;-- process wrapping panel options
 			switch/default spec/1 [
 				title	 [panel/text: fetch-argument string! spec]
-				size	 [size: fetch-argument pair! spec]
+				size	 [panel/size: size: fetch-argument pair! spec]
 				backdrop [
 					value: pre-load fetch-argument background! spec
 					switch type?/word value [
@@ -665,6 +665,7 @@ system/view/VID: context [
 				if actors: st/actors [st/actors: none]	;-- avoid binding actors bodies to face object
 				face: make face! copy/deep st
 				if actors [face/actors: copy/deep st/actors: actors]
+				if name [set name face]
 				
 				if all [
 					h: select system/view/metrics/def-heights face/type
@@ -732,7 +733,6 @@ system/view/VID: context [
 					]
 					
 					append list face
-					if name [set name face]
 					pane-size: max pane-size face/offset + face/size
 					if opts/now? [do-actor face none 'time]
 				]

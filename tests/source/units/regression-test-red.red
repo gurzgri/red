@@ -2921,6 +2921,17 @@ b}
 		--assert bu3603 = back change block3603: [] do/next block3603 'rest3603
 		unset [bu3603 rest3603 block3603]
 
+	--test-- "#3628"
+		k: 500
+		add3628: func [x y][
+			unique cache: [] ; <-- UNIQUE is the culprit
+			last append cache x + y
+		]
+		--assert integer? do collect [
+			repeat i k [keep reduce ['add3628 random i]]
+			keep 0
+		]
+
 	--test-- "#3662"
 		--assert equal?
 			[16  256  4096  65536  1048576 16777216 268435456]
@@ -3247,6 +3258,11 @@ comment {
 		]
 		--assert fails = 0
 
+	--test-- "#5123"
+		out: copy []
+		loop 10000 [collect/into [keep [[a: 1]] ] out]
+		--assert [[a: 1]] = unique out
+
 	--test-- "#5126-1"
 		fails: 0
 		loop 1000 [
@@ -3262,6 +3278,9 @@ comment {
 			unless do [find h all []] [fails: fails + 1]
 		]
 		--assert fails = 0
+
+	--test-- "#5178"
+		--assert [] == to block! make vector! []
 
 ===end-group===
 
