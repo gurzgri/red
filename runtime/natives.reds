@@ -854,8 +854,20 @@ natives: context [
 				ANY_SERIES?(type) [
 					res: all [arg1/data1 = arg2/data1 arg1/data2 = arg2/data2]
 				]
-				type = TYPE_FLOAT	[
+				any [
+					type = TYPE_FLOAT
+					type = TYPE_PERCENT
+					type = TYPE_PAIR
+					type = TYPE_TIME
+				][
 					res: all [arg1/data2 = arg2/data2 arg1/data3 = arg2/data3]
+				]
+				type = TYPE_TUPLE [
+					either TUPLE_SIZE?(arg1) = TUPLE_SIZE?(arg2) [
+						res: 0 = tuple/compare as red-tuple! arg1 as red-tuple! arg2 COMP_EQUAL
+					][
+						res: false
+					]
 				]
 				any [
 					type = TYPE_NONE
@@ -1248,6 +1260,7 @@ natives: context [
 			res	   [red-value!]
 			cframe [byte-ptr!]
 			type   [integer!]
+			len	   [integer!]
 	][
 		#typecheck [parse case? part trace]
 		op: either as logic! case? + 1 [COMP_STRICT_EQUAL][COMP_EQUAL]
@@ -1271,11 +1284,12 @@ natives: context [
 			]
 			if part <= 0 [
 				type: TYPE_OF(input)
-				logic/box zero? either ANY_STRING?(type) [
+				len: either ANY_STRING?(type) [
 					string/rs-length? as red-string! input
 				][
 					block/rs-length? as red-block! input
 				]
+				logic/box zero? len
 				return 0
 			]
 		]
