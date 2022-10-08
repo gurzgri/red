@@ -259,7 +259,6 @@ set-path*: func [
 	element [red-value!]
 ][
 	stack/set-last actions/eval-path parent element stack/arguments null no no yes
-	object/path-parent/header: TYPE_NONE				;-- disables owner checking
 ]
 
 set-int-path*: func [
@@ -274,7 +273,6 @@ set-int-path*: func [
 		no
 		no
 		yes
-	object/path-parent/header: TYPE_NONE				;-- disables owner checking
 ]
 
 eval-path*: func [
@@ -429,36 +427,28 @@ get-int-from: func [
 
 cycles: context [
 	size: 1000											;-- max depth allowed (arbitrary)
-	stack: as node! allocate size * size? node!			;-- cycles detection stack
-	top: stack
-	end: stack + size
+	bottom: as node! allocate size * size? node!		;-- cycles detection stack
+	top: bottom
+	end: bottom + size
 
 	push: func [node [node!]][
 		top/value: as-integer node
 		top: top + 1
-		if top = end [fire [TO_ERROR(internal too-deep)]]
+		if top = end [reset fire [TO_ERROR(internal too-deep)]]
 	]
 
-	pop: does [
-		if top > stack [top: top - 1]
-	]
+	pop: does [if top > bottom [top: top - 1]]
 
 	pop-n: func [n [integer!]][
-		assert top - n >= stack
+		assert top - n >= bottom
 		top: top - n
 	]
 	
-	reset: does [top: stack]
+	reset: does [top: bottom]
 	
-	find?: func [
-		node	[node!]
-		return: [logic!]
-		/local
-			p	 [node!]
-	][
-		if top = stack [return no]
-
-		p: stack
+	find?: func [node [node!] return: [logic!] /local p [node!]][
+		if top = bottom [return no]
+		p: bottom
 		until [
 			if node = as node! p/value [return yes]
 			p: p + 1
