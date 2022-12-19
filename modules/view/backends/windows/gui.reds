@@ -36,6 +36,8 @@ Red/System [
 	any [sym = base sym = rich-text sym = window sym = panel]
 ]
 
+#define FACE_FREED(hwnd) [zero? GetWindowLong hwnd wc-offset]
+
 #include %win32.reds
 #include %direct2d.reds
 #include %matrix2d.reds
@@ -1713,7 +1715,7 @@ OS-make-view: func [
 			si/fMask: SIF_PAGE or SIF_POS or SIF_RANGE
 			si/nMin: 0
 			si/nMax: 100
-			si/nPage: as-integer ratio * 100.0
+			si/nPage: float/round-to-int ratio * 100.0
 			si/nPos: 0
 			SetScrollInfo handle SB_CTL si true
 			fl: as red-float! data
@@ -2145,7 +2147,7 @@ change-selection: func [
 			si/cbSize: size? tagSCROLLINFO
 			si/fMask: SIF_PAGE or SIF_RANGE
 			GetScrollInfo hWnd SB_CTL :si
-			si/nPage: as-integer flt * as-float si/nMax - si/nMin
+			si/nPage: float/round-to-int flt * as-float si/nMax - si/nMin
 			SetScrollInfo hWnd SB_CTL :si true
 		]
 		sym = camera [

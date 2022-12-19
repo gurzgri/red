@@ -3356,6 +3356,16 @@ comment {
 			"1 a ^/2 b ^/3 c"
 			mold/only new-line/all/skip [1 a 2 b 3 c] yes 2
 
+	--test-- "#5066"
+		do [
+			s: append/dup "" "x" 1001
+			loop 1 b: [take/last s]
+			recycle recycle/off
+			s1: stats loop 1000 b n: stats - s1
+			--assert zero? n
+			recycle/on
+		]
+
 	--test-- "#5067"
 		c5067: context [
 			b: reduce ['f does [visited?: yes print ""]]
@@ -3444,9 +3454,7 @@ comment {
 		;; prevent the inner literal block [] to be referenced by loaded Redbin
 		;; payload. Moreover, as the loaded code is kept on stack by `do`, the 
 		;; memory cannot be fully released, so an extra `recycle` is needed
-		;; after `do`. Also, the `system/state/near` slot used by interpreted
-		;; code needs to be cleared, to ensure a reference to `r` object is
-		;; not kept there.
+		;; after `do`.
 
 		s0: s1: s2: none
 		do {
@@ -3456,9 +3464,13 @@ comment {
 			--assert s1 - s0 >= 260'000
 			r: none
 		}
-		system/state/near: none
 		s2: recycle
 		--assert s2 - s0 < 2000
+
+	--test-- "#5238"
+		h: make hash! [1 2 3 4 5 6 7 8 9 10 11 12 13]
+		loop 10000 [copy h]
+		--assert hash? h
 
 ===end-group===
 

@@ -469,11 +469,12 @@ system/view/VID: context [
 					sz
 				]
 			]
-			face/size: either opts/size-x [				;-- x size provided by user
+			new: either opts/size-x [					;-- x size provided by user
 				as-pair opts/size-x max sz/y min-sz/y
 			][
 				max sz min-sz
 			]
+			if new <> face/size [face/size: new]		;-- avoid triggering unnecessary reactions
 		]
 		if tight? [face/size: calc-size face]
 		
@@ -667,7 +668,7 @@ system/view/VID: context [
 					if actors: st/actors [st/actors: none]	;-- avoid binding actors bodies to face object
 					face: make face! copy/deep st
 					if actors [face/actors: copy/deep st/actors: actors]
-					if name [set name face]
+					if all [name not styling?][set name face]
 
 					if all [
 						h: select system/view/metrics/def-heights face/type

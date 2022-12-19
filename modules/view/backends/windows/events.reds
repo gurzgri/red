@@ -1373,6 +1373,7 @@ WndProc: func [
 		]
 		WM_NOTIFY [
 			nmhdr: as tagNMHDR lParam
+			if FACE_FREED(nmhdr/hWndFrom) [return 0]
 			switch nmhdr/code [
 				TCN_SELCHANGING [return process-tab-select nmhdr/hWndFrom]
 				TCN_SELCHANGE	[process-tab-change nmhdr/hWndFrom]
@@ -1509,10 +1510,11 @@ WndProc: func [
 		]
 		WM_SETCURSOR [
 			res: GetWindowLong as handle! wParam wc-offset - 28
-			if all [
-				res <> 0
-				res and 80000000h <> 0					;-- inside client area
-			][
+			if res <> 0 [
+				values: get-face-values as handle! wParam
+				w-type: as red-word! values + FACE_OBJ_TYPE
+				type: symbol/resolve w-type/symbol
+				if all [any [type = base type = rich-text] res and 80000000h = 0][return 0]
 				SetCursor as handle! (res and 7FFFFFFFh)
 				return 1
 			]
@@ -1606,6 +1608,7 @@ process: func [
 		track  [tagTRACKMOUSEEVENT value]
 		flags  [integer!]
 		word   [red-word!]
+		over?  [logic!]
 ][
 	flags: decode-down-flags msg/wParam
 	hWnd: msg/hWnd
@@ -1615,13 +1618,17 @@ process: func [
 			if last-mouse-pt = lParam [return EVT_NO_DISPATCH]
 			last-mouse-pt: lParam
 
+			over?: (get-face-flags hWnd) and FACET_FLAGS_ALL_OVER <> 0
 			x: WIN32_LOWORD(lParam)
 			y: WIN32_HIWORD(lParam)
-			if any [
-				x < (0 - screen-size-x) 				;@@ needs `negate` support
-				y < (0 - screen-size-y)
-				x > screen-size-x
-				y > screen-size-y
+			if all [
+				not over?
+				any [
+					x < (0 - screen-size-x) 			;@@ needs `negate` support
+					y < (0 - screen-size-y)
+					x > screen-size-x
+					y > screen-size-y
+				]
 			][
 				return EVT_DISPATCH						;-- filter out buggy mouse positions (thanks MS!)
 			]
@@ -1631,7 +1638,7 @@ process: func [
 				IsWindowEnabled new
 				any [
 					hover-saved <> new
-					(get-face-flags new) and FACET_FLAGS_ALL_OVER <> 0
+					over?
 				]
 			][
 				if hover-saved <> new [

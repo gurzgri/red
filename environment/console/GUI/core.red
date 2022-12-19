@@ -40,6 +40,7 @@ object [
 	page-cnt:	0								;-- number of lines in one page
 	line-cnt:	0								;-- number of lines in total (include wrapped lines)
 	screen-cnt: 0								;-- number of lines on screen
+	screen-cnt-saved: 0
 
 	history:	system/console/history
 	hist-idx:	0
@@ -102,7 +103,6 @@ object [
 		line-pos: length? lines
 		ask?: yes
 		redraw-cnt: 0
-		reset-top
 		clear-stack
 		set-flag hide?
 		either paste/resume [
@@ -110,6 +110,9 @@ object [
 		][
 			system/view/platform/redraw gui-console-ctx/console
 			system/view/auto-sync?: yes
+			loop 10 [do-ask-loop/no-wait]
+			reset-top
+			system/view/platform/redraw gui-console-ctx/console
 			do-events
 		]
 		ask?: no
@@ -306,10 +309,9 @@ object [
 		if delta >= 0 [reset-top]
 	]
 
-	reset-top: func [/local n][
-		n: line-cnt - page-cnt
+	reset-top: func [][
 		if any [
-			scroller/position <= n
+			screen-cnt-saved > page-cnt
 			full?
 		][
 			top: length? lines
@@ -356,7 +358,7 @@ object [
 	resize: func [new-size [pair!] /local y][
 		y: new-size/y
 		new-size/x: new-size/x - 20
-		new-size/y: y + line-h
+		new-size/y: y
 		box/size: new-size
 		if scroller [
 			page-cnt: to-integer y / line-h
@@ -1046,6 +1048,7 @@ object [
 		]
 		line-y: y - h
 		screen-cnt: to-integer y / line-h
+		screen-cnt-saved: screen-cnt
 		if screen-cnt > page-cnt [screen-cnt: page-cnt]
 		update-caret
 		update-scroller line-cnt - num

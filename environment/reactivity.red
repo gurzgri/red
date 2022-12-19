@@ -20,13 +20,6 @@ reactor!: context [
 				tab "new  :" type? :new
 			]
 		]
-		all [
-			not empty? srs: system/reactivity/source
-			srs/1 = self
-			srs/2 = word
-			set-quiet word old							;-- force the old value
-			exit
-		]
 		system/reactivity/check/only self word
 	]
 ]
@@ -41,16 +34,9 @@ deep-reactor!: context [
 				tab "new  :" type? :new
 			]
 		]
-		all [
-			not empty? srs: system/reactivity/source
-			srs/1 = self
-			srs/2 = word
-			set-quiet word old							;-- force the old value
-			exit
-		]
 		unless all [block? :old block? :new same? head :old head :new][
-			if any [series? :old object? :old][modify old 'owned none]
-			if any [series? :new object? :new][modify new 'owned reduce [self word]]
+			if find system/reactivity/types! type? :old [modify old 'owned none]
+			if find system/reactivity/types! type? :new [modify new 'owned reduce [self word]]
 		]
 		system/reactivity/check/only self word
 	]
@@ -69,7 +55,9 @@ system/reactivity: context [
 	queue:		 make block! 100
 	eat-events?: yes
 	debug?: 	 no
-	source:		 []
+	
+	types!: union series! make typeset! [object! bitset!]
+	not-safe!: union any-function! make typeset! [unset! error!]
 
 	add-relation: func [
 		obj		 [object!]
@@ -82,6 +70,29 @@ system/reactivity: context [
 		unless find/same/skip relations new-rel 4 [append relations new-rel]
 	]
 	
+	identify-sources: function [path [any-path!] reaction ctx return: [logic!]][
+		p: path
+		found?: no
+		if any [not word? p/1 find not-safe! type? get/any p/1][return no]
+
+		until [
+			if all [not tail? next p not word? p/2][return no] ;-- accessor not a word
+			slice: copy/part path next p
+			obj: try [get/any :slice]
+			if find not-safe! type? :obj [return no]
+			if all [
+				word? p/2
+				object? :obj							;-- rough checks for reactive object
+				in obj 'on-change*
+			][
+				add-relation obj p/2 :reaction ctx
+				found?: yes
+			]
+			tail? p: next p
+		]
+		found?
+	]
+
 	eval: function [code [block!] /safe][
 		either safe [
 			if error? set/any 'result try/all code [
@@ -116,7 +127,7 @@ system/reactivity: context [
 	]
 	
 	check: function [reactor [object!] /only field [word! set-word!]][
-		unless empty? pos: relations [
+		unless tail? pos: relations [
 			while [pos: find/same/skip pos reactor 4][
 				reaction: :pos/3
 				if all [
@@ -124,10 +135,6 @@ system/reactivity: context [
 					any [empty? queue  not pending? reactor :reaction]
 				][
 					either empty? queue [
-						if empty? source [
-							append source reactor
-							append source field
-						]
 						eval-reaction/mark reactor :reaction pos/4
 						
 						q: tail queue
@@ -147,7 +154,6 @@ system/reactivity: context [
 							head? q
 						]
 						clear queue
-						clear source
 					][
 						unless all [
 							eat-events?
@@ -233,12 +239,13 @@ system/reactivity: context [
 		obj: context? field
 		parse reaction rule: [
 			any [
-				set-path! | any-string!
-				| [item: word! | set item any-path!] (
-					if in obj item/1 [add-relation obj item/1 reaction field]
-				)
-				| into rule
-				| skip
+				item: word! (if in obj item/1 [add-relation obj item/1 reaction field])
+				| [path! | lit-path! | get-path!] (
+					item: item/1
+					if all [in obj item/1 not same? obj system/words][ ;-- avoid double registration
+						add-relation obj item/1 reaction field
+					]
+				) | set-path! | any-string! | into rule | skip
 			]
 		]
 		react/later/with reaction field
@@ -251,7 +258,7 @@ system/reactivity: context [
 		"Returns a reactive relation if an object's field is a reactive source"
 		reactor	[object!]	"Object to check"
 		field	[word!]		"Field to check"
-		/target				"Check if it's a target instead of a source"
+		/target				"Check if it's a target of an `is` reaction instead of a source"
 		return: [block! function! word! none!] "Returns reaction, type or NONE"
 	][
 		either target [
@@ -301,7 +308,7 @@ system/reactivity: context [
 					any [
 						item: [path! | lit-path! | get-path!] (
 							item: item/1
-							if pos: find objs item/1 [
+							if all [pos: find objs item/1 word? item/2][
 								obj: pick objects 1 + index? pos
 								add-relation obj item/2 :reaction objects
 								found?: yes
@@ -333,34 +340,8 @@ system/reactivity: context [
 				parse reaction rule: [
 					any [
 						item: [path! | lit-path! | get-path!] (
-							saved: item/1
-							if unset? attempt [get/any item: saved][
-								cause-error 'script 'no-value [item]
-							]
-							either 2 = length? item [
-								set/any 'obj get/any item/1
-								part: 1
-							][
-								part: length? item
-								until [					;-- search for an object (deep first)
-									part: part - 1
-									path: copy/part item part
-									any [
-										tail? path
-										object? obj: attempt [get path]
-										part = 1
-									]
-								]
-							]
-							if all [
-								object? :obj			;-- rough checks for reactive object
-								in obj 'on-change*
-							][
-								part: part + 1
-								add-relation obj item/:part reaction ctx
-								found?: yes
-							]
-							parse saved rule
+							found?: identify-sources item/1 :reaction ctx
+							parse item/1 rule
 						)
 						| set-path! | any-string!
 						| into rule

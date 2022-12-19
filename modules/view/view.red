@@ -425,23 +425,13 @@ face!: object [				;-- keep in sync with facet! enum
 				"-- on-change event --" lf
 				tab "face :" type		lf
 				tab "word :" word		lf
-				tab "old  :" type? :old	lf
-				tab "new  :" type? :new
+				tab "old  :" either find immediate! type? :old [mold :old][type? :old]	lf
+				tab "new  :" either find immediate! type? :new [mold :new][type? :new]
 			]
 		]
 
 		if all [word <> 'state word <> 'extra][
-			all [
-				not empty? srs: system/reactivity/source
-				srs/1 = self
-				srs/2 = word
-				set-quiet word old					;-- force the old value
-				exit
-			]
-			if all [
-				any [word = 'size word = 'offset]
-				old = new
-			][exit]
+			if all [any [word = 'size word = 'offset] old = new][exit]
 
 			same-pane?: all [block? :old block? :new same? head :old head :new]
 			if word = 'pane [
@@ -787,8 +777,8 @@ show: function [
 	show?: yes
 	if block? face [
 		foreach f face [
-			if word? f [f: get f]
-			if object? f [show?: show f]
+			if word? :f [f: get f]
+			either object? :f [show?: show f][cause-error 'script 'face-type [:f]]
 		]
 		return show?
 	]
@@ -812,7 +802,7 @@ show: function [
 		either face/type <> 'screen [
 			if all [not force face/type <> 'window][
 				unless parent [cause-error 'script 'not-linked []]
-				if all [object? face/parent face/parent/type <> 'tab-panel][face/parent: none]
+				if all [object? face/parent face/parent/type <> 'tab-panel not with][face/parent: none]
 			]
 			if any [series? face/extra object? face/extra][
 				modify face/extra 'owned none			;@@ TBD: unflag object's fields (ownership)
@@ -997,7 +987,7 @@ dump-face: function [
 	depth: ""
 	print [
 		depth "Type:" face/type "Style:" if face/options [face/options/style]
-		"Offset:" face/offset "Size:" face/size
+		"Offset:" face/offset "Size:" face/size "Color:" face/color
 		"Text:" if face/text [mold/part face/text 20]
 	]
 	append depth "    "

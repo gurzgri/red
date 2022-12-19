@@ -1716,6 +1716,9 @@ string: context [
 		element	[red-value!]
 		value	[red-value!]
 		path	[red-value!]
+		gparent [red-value!]
+		p-item	[red-value!]
+		index	[integer!]
 		case?	[logic!]
 		get?	[logic!]
 		tail?	[logic!]
@@ -2865,7 +2868,6 @@ string: context [
 			s		[series!]
 			unit	[integer!]
 			type	[integer!]
-			chk?	[logic!]
 	][
 		str: as red-string! _series/take as red-series! str part-arg deep? last?
 		s: GET_BUFFER(str)
@@ -2874,7 +2876,6 @@ string: context [
 			not OPTION?(part-arg)
 			1 = _series/get-length as red-series! str yes
 		][
-			chk?: ownership/check as red-value! str words/_take null str/head 0
 			unit: GET_UNIT(s)
 			type: TYPE_OF(str)
 			either type = TYPE_VECTOR [
@@ -2886,7 +2887,6 @@ string: context [
 				char/header: type
 				char/value:  get-char as byte-ptr! s/offset unit
 			]
-			if chk? [ownership/check as red-value! str words/_taken null str/head 0]
 		]
 		as red-value! str
 	]

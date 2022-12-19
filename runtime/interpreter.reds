@@ -134,6 +134,7 @@ interpreter: context [
 	fun-locs:	0										;-- event handler locals count
 	fun-evts:	0										;-- bitmask for encoding selected events
 	all-events:	1FFFFh									;-- bit-mask of all events
+	near:		declare red-block!						;-- Near: field in error! objects
 	
 	log: func [msg [c-string!]][
 		print "eval: "
@@ -886,29 +887,34 @@ interpreter: context [
 		sub?	[logic!]
 		case?	[logic!]
 		return: [red-value!]
-		/local 
-			head tail item parent gparent saved prev arg [red-value!]
+		/local
+			head tail item parent gparent saved prev arg p-item [red-value!]
 			path  [red-path!]
+			obj	  [red-object!]
+			w	  [red-word!]
 			ser	  [red-series!]
-			type  [integer!]
+			type idx [integer!]
 			tail? [logic!]
 	][
 		#if debug? = yes [if verbose > 0 [print-line "eval: path"]]
 		
-		path:   as red-path! value
-		head:   block/rs-head as red-block! path
-		tail:   block/rs-tail as red-block! path
+		path: as red-path! value
+		head: block/rs-head as red-block! path
+		tail: block/rs-tail as red-block! path
 		if head = tail [fire [TO_ERROR(script empty-path)]]
 		if tracing? [fire-event EVT_ENTER as red-block! path head null null]
 		if tracing? [fire-event EVT_FETCH as red-block! path head head head]
 		
-		item:   head + 1
-		saved:  stack/top
+		item:  head + 1
+		saved: stack/top
+		idx:   0
 		
 		if TYPE_OF(head) <> TYPE_WORD [fire [TO_ERROR(script word-first) path]]
 		
-		parent: _context/get as red-word! head
-		gparent: parent
+		p-item: head
+		w: as red-word! head
+		parent: _context/get w
+		gparent: null
 		
 		switch TYPE_OF(parent) [
 			TYPE_ACTION									;@@ replace with TYPE_ANY_FUNCTION
@@ -926,6 +932,11 @@ interpreter: context [
 			default	   [0]
 		]
 		if tracing? [fire-event EVT_PUSH as red-block! path head head parent]
+
+		if w/ctx <> global-ctx [
+			obj: as red-object! GET_CTX(w) + 1
+			if TYPE_OF(obj) <> TYPE_OBJECT [gparent: as red-value! obj]
+		]
 		
 		while [item < tail][
 			#if debug? = yes [if verbose > 0 [print-line ["eval: path parent: " TYPE_OF(parent)]]]
@@ -946,39 +957,28 @@ interpreter: context [
 			
 			;-- invoke eval-path action
 			prev: parent
+			type: TYPE_OF(parent)
 			tail?: item + 1 = tail
 			arg: either all [set? tail?][stack/arguments][null]
-			parent: actions/eval-path parent value arg path case? get? tail?
-			
-			;-- post-processing
-			if set? [
-				type: TYPE_OF(gparent)
-				case [
-					type = TYPE_OBJECT [
-						ownership/check-slot as red-object! gparent as red-word! item prev
-					]	
-					ANY_SERIES?(type) [
-						ser: as red-series! gparent
-						ownership/check as red-value! ser words/_set-path null ser/head 1
-					]
-					true [0]							;-- ignore other types
-				]
-			]
+			parent: actions/eval-path parent value arg path gparent p-item idx case? get? tail?
+
 			if all [not get? not set?][
 				switch TYPE_OF(parent) [
 					TYPE_ACTION							;@@ replace with TYPE_ANY_FUNCTION
 					TYPE_NATIVE
 					TYPE_ROUTINE
 					TYPE_FUNCTION [
-						pc: eval-code parent pc end code sub? path item gparent
+						pc: eval-code parent pc end code sub? path item prev
 						parent: stack/get-top
 						item: tail						;-- force loop exit
 					]
 					default [0]
 				]
 			]
-			gparent: parent								;-- save previous parent reference
+			p-item: item
+			gparent: prev								;-- save previous parent reference
 			item: item + 1
+			idx: idx + 1
 		]
 		if tracing? [fire-event EVT_EXIT as red-block! path tail null parent]
 
@@ -1099,7 +1099,6 @@ interpreter: context [
 			start  [red-value!]
 			w	   [red-word!]
 			op	   [red-value!]
-			near   [red-block!]
 			sym	   [integer!]
 			infix? [logic!]
 			lit?   [logic!]
@@ -1111,15 +1110,6 @@ interpreter: context [
 		infix?: no
 		start: pc
 		top?: not sub?
-		
-		if code <> null [
-			assert any [TYPE_OF(code) = TYPE_BLOCK TYPE_OF(code) = TYPE_PAREN TYPE_OF(code) = TYPE_HASH]
-			near: as red-block! #get system/state/near	;-- keep the Near: field updated
-			near/header: TYPE_BLOCK
-			near/head:   (as-integer pc - block/rs-head code) >> 4
-			near/node:   code/node
-			near/extra:   0
-		]
 		
 		unless prefix? [
 			next: as red-word! pc + 1
@@ -1382,9 +1372,11 @@ interpreter: context [
 		chain? [logic!]									;-- chain it with previous stack frame
 		/local
 			value head tail arg [red-value!]
+			saved [red-block! value]
 	][
 		head: block/rs-head code
 		tail: block/rs-tail code
+		copy-cell as red-value! near as red-value! saved
 
 		stack/mark-eval words/_body						;-- outer stack frame
 		if tracing? [fire-event EVT_ENTER code head null null]
@@ -1392,19 +1384,25 @@ interpreter: context [
 			arg: stack/arguments
 			arg/header: TYPE_UNSET
 		][
+			copy-cell as red-value! code as red-value! near ;-- initialize near cell
 			value: head
+			
 			while [value < tail][
 				#if debug? = yes [if verbose > 0 [log "root loop..."]]
-				catch RED_THROWN_ERROR [value: eval-expression value tail code no no no]
-				if system/thrown <> 0 [re-throw]
+				near/head: (as-integer value - head) >> 4
+				value: eval-expression value tail code no no no
 				if value + 1 <= tail [stack/reset]
 			]
 		]
 		if tracing? [fire-event EVT_EXIT code tail null stack/arguments]
+		copy-cell as red-value! saved as red-value! near
 		either chain? [stack/unwind-last][stack/unwind]
 	]
 	
 	init: does [
 		trace-fun: as red-function! ALLOC_TAIL(root)	;-- keep the tracing func reachable by the GC marker
+		
+		near/header: TYPE_UNSET
+		near/extra:  0
 	]
 ]
