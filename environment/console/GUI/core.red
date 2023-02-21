@@ -108,9 +108,8 @@ object [
 		either paste/resume [
 			do-ask-loop/no-wait
 		][
-			system/view/platform/redraw gui-console-ctx/console
+			paint/dry	;-- dry run
 			system/view/auto-sync?: yes
-			loop 10 [do-ask-loop/no-wait]
 			reset-top
 			system/view/platform/redraw gui-console-ctx/console
 			do-events
@@ -296,6 +295,7 @@ object [
 
 	calc-top: func [/new /local delta n][
 		n: calc-last-line new
+		paint/dry
 		if n < 0 [
 			delta: scroller/position + n
 			scroller/position: either delta < 1 [1][delta]
@@ -1012,7 +1012,7 @@ object [
 		if swap? [move/part skip selects 2 selects 2]
 	]
 
-	paint: func [/local txt str cmds y n h cnt delta num end styles][
+	paint: func [/dry /local txt str cmds y n h cnt delta num end styles][
 		if empty? lines [exit]
 
 		cmds: [pen color text 0x0 text-box]
@@ -1033,7 +1033,7 @@ object [
 			if color? [highlight/add-styles txt clear styles theme]
 			mark-selects styles n
 			cmds/4/y: y
-			system/view/platform/draw-face console cmds
+			unless dry [system/view/platform/draw-face console cmds]
 
 			cnt: rich-text/line-count? box
 			h: cnt * line-h

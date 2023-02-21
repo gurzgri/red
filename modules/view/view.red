@@ -490,6 +490,7 @@ face!: object [				;-- keep in sync with facet! enum
 			
 			all [
 				word = 'selected
+				selected
 				block? data
 				find [drop-list drop-down text-list field area] type
 				set-quiet 'text pick data selected
@@ -1226,11 +1227,12 @@ insert-event-func [
 		event/type = 'click
 		event/face/type = 'radio
 	][
-		foreach f event/face/parent/pane [
+		face: event/face								;-- save face reference to avoid single-event corruption (#5278)
+		foreach f face/parent/pane [
 			if all [f/type = 'radio f/data][f/data: off show f]
 		]
-		event/face/data: on
-		show event/face
+		face/data: on
+		show face
 		event/type: 'change
 	]
 	event

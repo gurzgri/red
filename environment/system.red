@@ -315,11 +315,6 @@ system: context [
 		locale:
 		locale*: none									;-- in locale language
 
-		;collation: context [
-		;	lower-to-upper: #system [stack/set-last as cell! case-folding/lower-to-upper]
-		;	upper-to-lower: #system [stack/set-last as cell! case-folding/upper-to-lower]
-		;]
-
 		months: [
 		  "January" "February" "March" "April" "May" "June"
 		  "July" "August" "September" "October" "November" "December"
@@ -458,7 +453,7 @@ system: context [
 			float! float! tuple! date! pair! time! money! tag! url! email! 'hex 'rawstring ref!
 		]
 		
-		tracer: lex: func [
+		tracer: func [
 			event  [word!]                  			;-- event name
 			input  [string! binary!]            		;-- input series at current loading position
 			type   [datatype! word! none!]       		;-- type of token or value currently processed.
@@ -468,7 +463,7 @@ system: context [
 		][
 			print [										;-- total: 64
 				uppercase pad event 8
-				pad rejoin [mold type "(" type? type ")"] 20
+				pad mold type 12
 				pad mold/part token 12 12				;-- limit in case it's a huge string/binary
 				pad line 4
 				mold/part input 16
