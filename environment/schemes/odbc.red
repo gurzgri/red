@@ -1375,22 +1375,22 @@ odbc: context [
 							digits:             7
 
 							ts:                 as sql-timestamp! prm-slot
-							ts/year|month:                                   red-date/date >> 17                 ;-- year
-							                    or                          (red-date/date >> 12 and 0Fh << 16)  ;-- month
-							ts/day|hour:                                     red-date/date >>  7 and 1Fh         ;-- day
-							                    or ((as integer! floor       red-date/time         / 3600.0) << 16)
-							ts/minute|second:       (as integer! floor (fmod red-date/time 3600.0) /   60.0)
-							                    or ((as integer!        fmod red-date/time   60.0          ) << 16)
+							ts/year|month:      DATE_GET_YEAR (red-date/date)
+							               or  (DATE_GET_MONTH(red-date/date) << 16)
+							ts/day|hour:       (DATE_GET_DAY  (red-date/date))
+							               or ((as integer! floor       red-date/time         / 3600.0) << 16)
+							ts/minute|second:  (as integer! floor (fmod red-date/time 3600.0) /   60.0)
+							               or ((as integer!        fmod red-date/time   60.0          ) << 16)
 						][
 							c-type:             sql/c-type-date
 							sql-type:           sql/type-date
 							digits:             0
 
 							dt:                 as sql-date! prm-slot
-							dt/year|month:                                   red-date/date >> 17 or              ;-- year
-							                                                (red-date/date >> 12 and 0Fh << 16)  ;-- month
-							dt/daylo:           as byte!                     red-date/date >>  7 and 1Fh
-							dt/dayhi:           as byte! 0
+							dt/year|month:      DATE_GET_YEAR (red-date/date)
+							                or (DATE_GET_MONTH(red-date/date) << 16)
+							dt/daylo:  as byte! DATE_GET_DAY  (red-date/date)
+							dt/dayhi:  as byte! 0
 						]
 					]
 					TYPE_TIME [
@@ -2370,8 +2370,8 @@ odbc: context [
 							either zero? limit [
 								word/push-in odbc/_deferred rowblk
 							][
-								len: either (limit >> 1 - 1) < len-slot/value [limit] [len-slot/value]
-								string/load-in as c-string! col-slot len >> 1 - 1 rowblk UTF-16LE
+								len: either len-slot/value >> 1 > limit [limit] [len-slot/value >> 1]
+								string/load-in as c-string! col-slot len rowblk UTF-16LE
 							]
 						]
 						any [
@@ -2428,10 +2428,10 @@ odbc: context [
 						sql-type = sql/type-date [
 							dt: as sql-date! col-slot
 
-							d: 0 and 0001FFFFh or ((dt/year|month and 0000FFFFh      )         << 17)
-							d: d and FFFF0FFFh or ((dt/year|month and FFFF0000h >> 16) and 0Fh << 12)
-						;   d: d and FFFFF07Fh or ((dt/day|pad    and 0000FFFFh      ) and 1Fh <<  7)
-							d: d and FFFFF07Fh or ((as integer! dt/daylo)              and 1Fh <<  7)
+							d: DATE_CLEAR_TIME_FLAG(0)
+							d: DATE_SET_YEAR( d (dt/year|month and 0000FFFFh))
+							d: DATE_SET_MONTH(d (dt/year|month and FFFF0000h >> 16))
+							d: DATE_SET_DAY(  d (as integer! dt/daylo))
 
 							date/make-in rowblk d 0 0
 						]
@@ -2451,10 +2451,10 @@ odbc: context [
 						sql-type = sql/type-timestamp [
 							ts: as sql-timestamp! col-slot
 
-							d: 0 and 0001FFFFh or ((ts/year|month and 0000FFFFh      )         << 17)
-							d: d and FFFF0FFFh or ((ts/year|month and FFFF0000h >> 16) and 0Fh << 12)
-							d: d and FFFFF07Fh or ((ts/day|hour   and 0000FFFFh      ) and 1Fh <<  7)
-							d: d or 00010000h
+							d: DATE_SET_TIME_FLAG(0)
+							d: DATE_SET_YEAR( d (ts/year|month and 0000FFFFh))
+							d: DATE_SET_MONTH(d (ts/year|month and FFFF0000h >> 16))
+							d: DATE_SET_DAY(  d (ts/day|hour   and 0000FFFFh))
 
 							t: (3600.0 * as float! ts/day|hour      and FFFF0000h >> 16)
 							 + (  60.0 * as float! ts/minute|second and 0000FFFFh      )
