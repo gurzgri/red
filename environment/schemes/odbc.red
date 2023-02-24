@@ -1344,7 +1344,7 @@ odbc: context [
 						col-size:               prm-slotlen >> 1 - 1
 
 						c-string:               unicode/to-utf16 as red-string! param
-						len-slot/value:         odbc/wlength? unicode/to-utf16 as red-string! param
+						len-slot/value:         (odbc/wlength? unicode/to-utf16 as red-string! param) << 1
 
 						copy-memory prm-slot as byte-ptr! c-string prm-slotlen
 					]
