@@ -1375,22 +1375,22 @@ odbc: context [
 							digits:             7
 
 							ts:                 as sql-timestamp! prm-slot
-							ts/year|month:      DATE_GET_YEAR (red-date/date)
-							               or  (DATE_GET_MONTH(red-date/date) << 16)
-							ts/day|hour:       (DATE_GET_DAY  (red-date/date))
-							               or ((as integer! floor       red-date/time         / 3600.0) << 16)
-							ts/minute|second:  (as integer! floor (fmod red-date/time 3600.0) /   60.0)
-							               or ((as integer!        fmod red-date/time   60.0          ) << 16)
+							ts/year|month:      (red-date/date >> 17) 
+							               or (((red-date/date >> 12) and 0Fh) << 16)
+							ts/day|hour:      (((red-date/date >>  7) and 1Fh))
+							               or  ((as integer! floor       red-date/time         / 3600.0) << 16)
+							ts/minute|second:   (as integer! floor (fmod red-date/time 3600.0) /   60.0)
+							               or  ((as integer!        fmod red-date/time   60.0          ) << 16)
 						][
 							c-type:             sql/c-type-date
 							sql-type:           sql/type-date
 							digits:             0
 
 							dt:                 as sql-date! prm-slot
-							dt/year|month:      DATE_GET_YEAR (red-date/date)
-							                or (DATE_GET_MONTH(red-date/date) << 16)
-							dt/daylo:  as byte! DATE_GET_DAY  (red-date/date)
-							dt/dayhi:  as byte! 0
+							dt/year|month:      (red-date/date >> 17)
+							              or  (((red-date/date >> 12) and 0Fh) << 16)
+							dt/daylo: as byte! ((red-date/date >>  7) and 1Fh)
+							dt/dayhi: as byte!  0
 						]
 					]
 					TYPE_TIME [
@@ -2428,10 +2428,9 @@ odbc: context [
 						sql-type = sql/type-date [
 							dt: as sql-date! col-slot
 
-							d: DATE_CLEAR_TIME_FLAG(0)
-							d: DATE_SET_YEAR( d (dt/year|month and 0000FFFFh))
-							d: DATE_SET_MONTH(d (dt/year|month and FFFF0000h >> 16))
-							d: DATE_SET_DAY(  d (as integer! dt/daylo))
+							d:                     ((dt/year|month and 0000FFFFh)               << 17)
+							d: (d and FFFF0FFFh or ((dt/year|month and FFFF0000h >> 16) and 0Fh << 12))
+							d: (d and FFFFF07Fh or ((as integer! dt/daylo)              and 1Fh <<  7))
 
 							date/make-in rowblk d 0 0
 						]
@@ -2451,10 +2450,9 @@ odbc: context [
 						sql-type = sql/type-timestamp [
 							ts: as sql-timestamp! col-slot
 
-							d: DATE_SET_TIME_FLAG(0)
-							d: DATE_SET_YEAR( d (ts/year|month and 0000FFFFh))
-							d: DATE_SET_MONTH(d (ts/year|month and FFFF0000h >> 16))
-							d: DATE_SET_DAY(  d (ts/day|hour   and 0000FFFFh))
+							d:        00010000h or ((ts/year|month and 0000FFFFh)               << 17)
+							d: (d and FFFF0FFFh or ((ts/year|month and FFFF0000h >> 16) and 0Fh << 12))
+							d: (d and FFFFF07Fh or ((ts/day|hour   and 0000FFFFh)       and 1Fh <<  7))
 
 							t: (3600.0 * as float! ts/day|hour      and FFFF0000h >> 16)
 							 + (  60.0 * as float! ts/minute|second and 0000FFFFh      )
