@@ -1065,6 +1065,34 @@ set-window-info: func [
 	ret?
 ]
 
+update-faces-color: func [
+	child	[red-block!]
+	/local
+		face	[red-object!]
+		tail	[red-object!]
+		values	[red-value!]
+		word	[red-word!]
+		hWnd	[handle!]
+		type	[integer!]
+][
+	if TYPE_OF(child) <> TYPE_BLOCK [exit]
+
+	face: as red-object! block/rs-head child
+	tail: as red-object! block/rs-tail child
+	while [face < tail][
+		hWnd: face-handle? face
+		if hWnd <> null [
+			values: get-face-values hWnd
+			word: as red-word! values + FACE_OBJ_TYPE
+			type: symbol/resolve word/symbol
+			if IS_D2D_FACE(type) [
+				set-dark-mode hWnd dark-mode? no
+			]
+		]
+		face: face + 1
+	]
+]
+
 update-window: func [
 	child	[red-block!]
 	fonts	[node!]				;-- font handle array
@@ -1213,8 +1241,10 @@ WndProc: func [
 		flags  [integer!]
 		miniz? [logic!]
 		font?  [logic!]
+		dark?  [logic!]
 		x	   [integer!]
 		y	   [integer!]
+		ShouldAppsUseDarkMode [ShouldAppsUseDarkMode!]
 ][
 	if no-face? hWnd [return DefWindowProc hWnd msg wParam lParam]
 
@@ -1246,7 +1276,14 @@ WndProc: func [
 				target: as render-target! GetWindowLong hWnd wc-offset - 36
 				if target <> null [
 					DX-resize-buffer target WIN32_LOWORD(lParam) WIN32_HIWORD(lParam)
-					InvalidateRect hWnd null 1
+					either all [
+						(WS_EX_LAYERED and GetWindowLong hWnd GWL_EXSTYLE) <> 0
+						0 <> GetWindowLong hWnd wc-offset + 4
+					][
+						update-base hWnd null null values
+					][
+						InvalidateRect hWnd null 1
+					]
 				]
 			]]
 			if type = window [
