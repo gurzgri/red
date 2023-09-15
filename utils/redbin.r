@@ -95,8 +95,12 @@ context [
 		emit to integer! skip bin 4
 	]
 	
+	emit-float32-bin: func [f [decimal! issue!]][
+		insert tail buffer IEEE-754/to-binary32/rev f
+	]
+	
 	emit-ctx-info: func [word [any-word!] ctx [word! none!] /local entry pos][
-		if any [not ctx	none? entry: find contexts ctx][emit -1 return -1]				;-- -1 for global context
+		if any [not ctx	none? entry: find contexts ctx][emit -1 return -1]	;-- -1 for global context
 		either pos: find entry/2 to word! word [
 			emit entry/3
 			(index? pos) - 1
@@ -127,15 +131,10 @@ context [
 		emit-float-bin value
 	]
 	
-	emit-fp-special: func [value [issue!]][
+	emit-fp-special: func [value [issue!] /local p][
 		pad buffer 8
 		emit-type 'TYPE_FLOAT
-		switch next value [
-			#INF  [emit to integer! #{7FF00000} emit 0]
-			#INF- [emit to integer! #{FFF00000} emit 0]
-			#NaN  [emit to integer! #{7FF80000} emit 0]			;-- smallest quiet NaN
-			#0-	  [emit to integer! #{80000000} emit 0]
-		]
+		insert tail buffer IEEE-754/to-binary64/rev4 value
 	]
 
 	emit-percent: func [value [issue!] /local bin][
@@ -169,6 +168,11 @@ context [
 		emit-type 'TYPE_PAIR
 		emit value/x
 		emit value/y
+	]
+	
+	emit-point: func [list [block!]][
+		emit-type select [2 TYPE_POINT2D 3 TYPE_POINT3D] length? list
+		forall list [emit-float32-bin either integer? list/1 [to decimal! list/1][list/1]]
 	]
 
 	emit-tuple: func [value [issue!] /local bin header][
@@ -300,6 +304,10 @@ context [
 			blk/1 = #!map! [
 				remove blk
 				'map
+			]
+			blk/1 = #!point! [
+				emit-point next blk
+				exit
 			]
 			blk/1 = #!date! [
 				emit-date/with blk/2 blk/3

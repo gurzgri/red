@@ -50,7 +50,7 @@ size-text: function [
 	face	 [object!]		"Face containing the text to size"
 	/with 					"Provide a text string instead of face/text"
 		text [string!]		"Text to measure"
-	return:  [pair! none!]	"Return the text's size or NONE if failed"
+	return:  [point2D! none!]	"Return the text's size or NONE if failed"
 ][
 	either face/type = 'rich-text [
 		if block? h: face/handles [poke h length? h true]
@@ -65,7 +65,7 @@ caret-to-offset: function [
 	face	[object!]
 	pos		[integer!]
 	/lower			"lower end offset of the caret"
-	return:	[pair!]
+	return:	[point2D!]
 ][
 	opt: either lower [6][0]
 	system/view/platform/text-box-metrics face pos opt
@@ -74,7 +74,7 @@ caret-to-offset: function [
 offset-to-caret: function [
 	"Given a coordinate, returns the corresponding caret position"
 	face	[object!]
-	pt		[pair!]
+	pt		[pair! point2D!]
 	return:	[integer!]
 ][
 	system/view/platform/text-box-metrics face pt 1
@@ -83,7 +83,7 @@ offset-to-caret: function [
 offset-to-char: function [
 	"Given a coordinate, returns the corresponding character position"
 	face	[object!]
-	pt		[pair!]
+	pt		[pair! point2D!]
 	return:	[integer!]
 ][
 	system/view/platform/text-box-metrics face pt 5
@@ -96,7 +96,7 @@ rich-text: context [
 		"Given a text position, returns the corresponding line's height"
 		face	[object!]
 		pos		[integer!]
-		return:	[integer!]
+		return:	[float!]
 	][
 		system/view/platform/text-box-metrics face pos 2
 	]
@@ -901,9 +901,12 @@ view: function [
 		flgs [block! word!]	"One or more window flags"
 	;/modal					"Display a modal window (pop-up)"
 	/no-wait				"Return immediately - do not wait"
+	/no-sync				"Requires `show` calls to refresh faces"
 ][
 	unless system/view/screens [system/view/platform/init]
 	
+	sync?: system/view/auto-sync?
+	if no-sync [system/view/auto-sync?: no]
 	if block? spec [spec: either tight [layout/tight spec][layout spec]]
 	if spec/type <> 'window [cause-error 'script 'not-window []]
 	if options [set/any spec make object! opts]
@@ -913,12 +916,14 @@ view: function [
 	unless spec/offset [center-face spec]
 	unless show spec [exit]
 
-	either no-wait [
+	set/any 'result either no-wait [
 		do-events/no-wait
 		spec							;-- return root face
 	][
 		do-events ()					;-- return unset! value by default
 	]
+	system/view/auto-sync?: sync?
+	:result
 ]
 
 center-face: function [
@@ -997,6 +1002,20 @@ dump-face: function [
 	if block? face/pane [foreach f face/pane [dump-face f]]
 	remove/part depth 4
 	face
+]
+
+;-- Temporary helper function, original code: https://codeberg.org/hiiamboris/red-common/src/branch/master/do-unseen.red
+do-no-sync: func [
+	"Evaluate CODE with view/auto-sync?: off"
+	code [block!]
+	/local r e old
+][
+	old: system/view/auto-sync?
+	system/view/auto-sync?: no
+	e: try/all [set/any 'r do code  'ok]
+	system/view/auto-sync?: old
+	if error? e [do :e]								;-- rethrow the error AFTER restoring auto-sync
+	:r
 ]
 
 get-scroller: function [
@@ -1138,8 +1157,8 @@ insert-event-func [
 			unless all [
 				object? :result
 				[min max] = words-of result
-				pair? result/min
-				pair? result/max
+				find [pair! point2D!] type?/word result/min
+				find [pair! point2D!] type?/word result/max
 			][
 				result: none
 			]
@@ -1151,12 +1170,7 @@ insert-event-func [
 					unless event/away? [
 						new: face/offset + event/offset - drag-info/1
 						if face/offset <> new [
-							if box: drag-info/2 [
-								if new/x < box/min/x [new/x: box/min/x]
-								if new/x > box/max/x [new/x: box/max/x]
-								if new/y < box/min/y [new/y: box/min/y]
-								if new/y > box/max/y [new/y: box/max/y]
-							]
+							if box: drag-info/2 [new: min box/max max box/min new]
 							if face/offset <> new [face/offset: new]
 							set/any 'result do-actor face event 'drag ;-- avoid calling on-over actor
 							unless system/view/auto-sync? [show face]

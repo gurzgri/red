@@ -63,7 +63,7 @@ empty?: func [
 ][
 	prin mold :value
 	prin ": "
-	print either value? :value [mold get/any :value]["unset!"]
+	print either any [path? :value value? :value][mold get/any :value]["unset!"]
 ]
 
 probe: func [
@@ -81,9 +81,9 @@ quote: func [
 	:value
 ]
 
-first:	func ["Returns the first value in a series"  s [series! tuple! pair! date! time!]] [pick s 1]	;@@ temporary definitions, should be natives ?
-second:	func ["Returns the second value in a series" s [series! tuple! pair! date! time!]] [pick s 2]
-third:	func ["Returns the third value in a series"  s [series! tuple! date! time!]] [pick s 3]
+first:	func ["Returns the first value in a series"  s [series! tuple! pair! any-point! date! time!]] [pick s 1]	;@@ temporary definitions, should be natives ?
+second:	func ["Returns the second value in a series" s [series! tuple! pair! any-point! date! time!]] [pick s 2]
+third:	func ["Returns the third value in a series"  s [series! tuple! date! point3D! time!]] [pick s 3]
 fourth:	func ["Returns the fourth value in a series" s [series! tuple! date!]] [pick s 4]
 fifth:	func ["Returns the fifth value in a series"  s [series! tuple! date!]] [pick s 5]
 
@@ -95,7 +95,7 @@ last: func ["Returns the last value in a series" s [series! tuple!]] [pick s len
 		bitset! binary! block! char! email! file! float! get-path! get-word! hash!
 		integer! issue! lit-path! lit-word! logic! map! none! pair! paren! path!
 		percent! refinement! set-path! set-word! string! tag! time! typeset! tuple!
-		unset! url! word! image! date! money! ref!
+		unset! url! word! image! date! money! ref! point2D! point3D!
 	]
 	test-list: union to-list [
 		handle! error! action! native! datatype! function! image! object! op! routine! vector!
@@ -132,7 +132,7 @@ last: func ["Returns the last value in a series" s [series! tuple!]] [pick s len
 	docstring: "Returns true if the value is any type of "
 	foreach name [
 		any-list! any-block! any-function! any-object! any-path! any-string! any-word!
-		series! number! immediate! scalar! all-word!
+		series! number! immediate! scalar! all-word! any-point!
 	][
 		repend list [
 			load head change back tail form name "?:" 'func
@@ -985,7 +985,7 @@ tan: func [
 ]
 
 acos: func [
-	"Returns the trigonometric arccosine (in radians in range [0,pi])"
+	"Returns the trigonometric arccosine in radians in range [0,pi]"
 	cosine [float!] "in range [-1,1]"
 ][
 	#system [
@@ -995,7 +995,7 @@ acos: func [
 ]
 
 asin: func [
-	"Returns the trigonometric arcsine (in radians in range [-pi/2,pi/2])"
+	"Returns the trigonometric arcsine in radians in range [-pi/2,pi/2])"
 	sine [float!] "in range [-1,1]"
 ][
 	#system [
@@ -1005,7 +1005,7 @@ asin: func [
 ]
 
 atan: func [
-	"Returns the trigonometric arctangent (in radians in range [-pi/2,+pi/2])"
+	"Returns the trigonometric arctangent in radians in range [-pi/2,+pi/2]"
 	tangent [float!] "in range [-inf,+inf]"
 ][
 	#system [

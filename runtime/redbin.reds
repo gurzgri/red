@@ -558,6 +558,8 @@ redbin: context [
 			TYPE_INTEGER
 			TYPE_CHAR 		[record [payload header data/data2]]
 			TYPE_PAIR 		[record [payload header data/data2 data/data3]]
+			TYPE_POINT2D	[record [payload header data/data1 data/data2]]
+			TYPE_POINT3D	[record [payload header data/data1 data/data2 data/data3]]
 			TYPE_PERCENT
 			TYPE_TIME
 			TYPE_FLOAT 		[pad payload 64 record [payload header data/data3 data/data2]]
@@ -571,7 +573,7 @@ redbin: context [
 			TYPE_NATIVE
 			TYPE_ACTION 	[encode-native data header payload symbols table strings]
 			TYPE_PORT
-			TYPE_POINT
+			TYPE_TRIPLE
 			TYPE_HANDLE
 			TYPE_EVENT
 			TYPE_ROUTINE 	[
@@ -679,6 +681,22 @@ redbin: context [
 				cell: as cell! pair/make-in parent data/2 data/3
 				data + 3
 			]
+			TYPE_POINT2D	[
+				cell: ALLOC_TAIL(parent)
+				cell/header: TYPE_POINT2D
+				cell/data1: data/2
+				cell/data2: data/3
+				cell/data3: 0
+				data + 3
+			]
+			TYPE_POINT3D	[
+				cell: ALLOC_TAIL(parent)
+				cell/header: TYPE_POINT3D
+				cell/data1: data/2
+				cell/data2: data/3
+				cell/data3: data/4
+				data + 4
+			]
 			TYPE_UNSET		[
 				cell: as cell! unset/make-in parent
 				data + 1
@@ -708,7 +726,7 @@ redbin: context [
 			TYPE_ROUTINE
 			TYPE_HANDLE
 			TYPE_EVENT
-			TYPE_POINT [
+			TYPE_TRIPLE [
 				reset
 				fire [TO_ERROR(access no-codec) datatype/push type]
 				data								;-- pass compiler's type checking

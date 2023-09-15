@@ -146,7 +146,8 @@ write %build/bin/sources.r set-cache [
 			%path.reds
 			%pair.reds
 			%percent.reds
-			%point.reds
+			%point2D.reds
+			%point3D.reds
 			%port.reds
 			%ref.reds
 			%refinement.reds
@@ -158,6 +159,7 @@ write %build/bin/sources.r set-cache [
 			%symbol.reds
 			%tag.reds
 			%time.reds
+			%triple.reds
 			%typeset.reds
 			%tuple.reds
 			%unset.reds
@@ -179,6 +181,7 @@ write %build/bin/sources.r set-cache [
 			%image-gdiplus.reds
 			%image-gdk.reds
 			%image-quartz.reds
+			%image-stub.reds
 			%win32-ansi.reds
 			%win32-print.reds
 		]

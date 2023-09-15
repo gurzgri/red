@@ -59,7 +59,13 @@ red: context [
 		]
 		Syllable []
 		macOS	 [#include %platform/image-quartz.reds]
-		Linux	 [#include %platform/image-gdk.reds]
+		Linux	 [
+			#either config-name = 'Pico [
+				#include %platform/image-stub.reds
+			][
+				#include %platform/image-gdk.reds
+			]
+		]
 		FreeBSD  [#include %platform/image-gdk.reds]
 		NetBSD   [#include %platform/image-gdk.reds]
 		#default []
@@ -98,7 +104,7 @@ red: context [
 	#include %datatypes/url.reds
 	#include %datatypes/object.reds
 	#include %datatypes/bitset.reds
-	#include %datatypes/point.reds
+	#include %datatypes/triple.reds
 	#include %datatypes/float.reds
 	#include %datatypes/typeset.reds
 	#include %datatypes/error.reds
@@ -116,6 +122,8 @@ red: context [
 	#include %datatypes/port.reds
 	#include %datatypes/money.reds
 	#include %datatypes/ref.reds
+	#include %datatypes/point2D.reds
+	#include %datatypes/point3D.reds
 	#if OS = 'Windows [#include %datatypes/image.reds]	;-- temporary
 	#if OS = 'macOS   [#include %datatypes/image.reds]	;-- temporary
 	#if OS = 'Linux   [#include %datatypes/image.reds]
@@ -199,7 +207,7 @@ red: context [
 		file/init										;-- file! inherits from url!
 		object/init
 		bitset/init
-		point/init
+		triple/init
 		float/init
 		typeset/init
 		error/init
@@ -217,6 +225,8 @@ red: context [
 		port/init
 		money/init
 		ref/init
+		point2D/init
+		point3D/init
 		#if OS = 'Windows [								;-- temporary
 			#if draw-engine <> 'GDI+ [OS-image/init]
 			image/init
@@ -289,7 +299,7 @@ red: context [
 			vector/verbose:		verbosity
 			map/verbose:		verbosity
 			hash/verbose:		verbosity
-			point/verbose:		verbosity
+			triple/verbose:		verbosity
 			pair/verbose:		verbosity
 			percent/verbose:	verbosity
 			tuple/verbose:		verbosity
@@ -301,6 +311,8 @@ red: context [
 			port/verbose:		verbosity
 			money/verbose:		verbosity
 			ref/verbose:		verbosity
+			point2D/verbose:	verbosity
+			point3D/verbose:	verbosity
 			#if OS = 'Windows [image/verbose: verbosity]
 			#if OS = 'macOS   [image/verbose: verbosity]
 

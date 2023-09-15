@@ -883,6 +883,7 @@ natives: context [
 				any [
 					type = TYPE_ACTION
 					type = TYPE_NATIVE
+					type = TYPE_POINT2D
 				][
 					res: all [arg1/data1 = arg2/data1 arg1/data2 = arg2/data2]
 				]
@@ -1341,6 +1342,7 @@ natives: context [
 			set2	 [red-value!]
 			skip-arg [red-value!]
 			type	 [integer!]
+			type2	 [integer!]
 			case?	 [logic!]
 	][
 		set1: stack/arguments
@@ -1349,10 +1351,16 @@ natives: context [
 
 		if all [
 			op <> OP_UNIQUE
-			type <> TYPE_OF(set2)
+			either any [type = TYPE_BLOCK type = TYPE_HASH][
+				type2: TYPE_OF(set2)
+				all [type2 <> TYPE_BLOCK type2 <> TYPE_HASH]
+			][
+				type <> TYPE_OF(set2)
+			]
 		][
 			fire [TO_ERROR(script expect-val) datatype/push type datatype/push TYPE_OF(set2)]
 		]
+
 		skip-arg: set1 + skip
 		case?:	  as logic! cased + 1
 
@@ -1643,6 +1651,7 @@ natives: context [
 					f/value > 0.0 [ 1]
 					f/value < 0.0 [-1]
 					f/value = 0.0 [ 0]
+					true		  [ 0]
 				]
 			]
 			default [ERR_EXPECT_ARGUMENT((TYPE_OF(res)) 1)]
@@ -1850,6 +1859,7 @@ natives: context [
 			i	 [red-integer!]
 			f	 [red-float!]
 			p	 [red-pair!]
+			pt	 [red-point3D!]
 			ret  [red-logic!]
 	][
 		#typecheck -zero?- 								;-- `zero?` would be converted to `0 =` by lexer
@@ -1872,6 +1882,14 @@ natives: context [
 			TYPE_PAIR [
 				p: as red-pair! i
 				all [p/x = 0 p/y = 0]
+			]
+			TYPE_POINT2D [
+				pt: as red-point3D! i
+				all [pt/x = as-float32 0 pt/y = as-float32 0]
+			]
+			TYPE_POINT2D [
+				pt: as red-point3D! i
+				all [pt/x = as-float32 0 pt/y = as-float32 0 pt/z = as-float32 0]
 			]
 			TYPE_TUPLE [
 				tuple/all-zero? as red-tuple! i
@@ -2071,38 +2089,74 @@ natives: context [
 			arg	 [red-value!]
 			int  [red-integer!]
 			fl	 [red-float!]
+			i	 [integer!]
+			get-value [subroutine!]
 	][
 		#typecheck as-pair
 		arg: stack/arguments
 		pair: as red-pair! arg
 		
-		switch TYPE_OF(arg) [
-			TYPE_INTEGER [
-				int: as red-integer! arg
-				pair/x: int/value
+		get-value: [
+			switch TYPE_OF(arg) [
+				TYPE_INTEGER [
+					int: as red-integer! arg
+					i: int/value
+				]
+				TYPE_FLOAT	 [
+					fl: as red-float! arg
+					if float/special? fl/value [fire [TO_ERROR(script invalid-arg) arg]]
+					i: as-integer fl/value
+				]
+				default		 [assert false]
 			]
-			TYPE_FLOAT	 [
-				fl: as red-float! arg
-				if float/special? fl/value [fire [TO_ERROR(script invalid-arg) arg]]
-				pair/x: as-integer fl/value
-			]
-			default		 [assert false]
+			i
 		]
+		pair/x: get-value
 		arg: arg + 1
-		switch TYPE_OF(arg) [
-			TYPE_INTEGER [
-				int: as red-integer! arg
-				pair/y: int/value
-			]
-			TYPE_FLOAT	 [
-				fl: as red-float! arg
-				if float/special? fl/value [fire [TO_ERROR(script invalid-arg) arg]]
-				pair/y: as-integer fl/value
-			]
-			default		[assert false]
-		]
+		pair/y: get-value
 		pair/header: TYPE_PAIR
 	]
+	
+	as-point: func [
+		size	 [integer!]
+		/local
+			p	 [red-point3D!]
+			arg	 [red-value!]
+			int  [red-integer!]
+			fl	 [red-float!]
+			f32  [float32!]
+			get-value [subroutine!]
+	][
+		arg: stack/arguments
+		p: as red-point3D! arg
+
+		get-value: [
+			switch TYPE_OF(arg) [
+				TYPE_INTEGER [
+					int: as red-integer! arg
+					f32: as-float32 int/value
+				]
+				TYPE_FLOAT	 [
+					fl: as red-float! arg
+					f32: as-float32  fl/value
+				]
+				default		[assert false]
+			]
+			f32
+		]
+		p/x: get-value
+		arg: arg + 1
+		p/y: get-value
+		either size = 2 [
+			p/header: TYPE_POINT2D
+		][
+			arg: arg + 1
+			p/z: get-value
+			p/header: TYPE_POINT3D
+		]
+	]
+	as-point2D*: func [check? [logic!]][#typecheck as-point2D  as-point 2]
+	as-point3D*: func [check? [logic!]][#typecheck as-point3D  as-point 3]
 	
 	as-money*: func [
 		check? [logic!]
@@ -3054,8 +3108,13 @@ natives: context [
 			arg		[red-value!]
 			arg2	[red-value!]
 			value	[red-value!]
+			fval	[red-float!]
 			p		[red-pair!]
 			p2		[red-pair!]
+			pt		[red-point2D!]
+			pt2		[red-point2D!]
+			pt3 	[red-point3D!]
+			pt3b 	[red-point3D!]
 			tp		[red-tuple!]
 			buf		[byte-ptr!]
 			buf2	[byte-ptr!]
@@ -3064,6 +3123,7 @@ natives: context [
 			size	[integer!]
 			type	[integer!]
 			type2	[integer!]
+			f32		[float32!]
 			b		[byte!]
 			result	[logic!]
 			comp?	[logic!]
@@ -3074,9 +3134,27 @@ natives: context [
 		type:	TYPE_OF(arg)
 		type2:	TYPE_OF(arg2)
 		comp?:	no
-		
+
+		if any [type = TYPE_FLOAT type = TYPE_PERCENT][
+			fval: as red-float! arg
+			if all [
+				float/NaN? fval/value
+				any [type2 = TYPE_FLOAT type2 = TYPE_PERCENT type2 = TYPE_INTEGER]
+			][exit]
+		]
+		if any [type2 = TYPE_FLOAT type2 = TYPE_PERCENT][
+			fval: as red-float! arg2
+			if all [
+				float/NaN? fval/value
+				any [type = TYPE_FLOAT type = TYPE_PERCENT type = TYPE_INTEGER]
+			][
+				stack/set-last arg2
+				exit
+			]
+		]
+
 		if any [
-			all [type2 = TYPE_PAIR  any [type = TYPE_INTEGER type = TYPE_FLOAT]]
+			all [any [type2 = TYPE_PAIR type2 = TYPE_POINT2D type2 = TYPE_POINT3D] any [type = TYPE_INTEGER type = TYPE_FLOAT]]
 			all [type2 = TYPE_TUPLE any [type = TYPE_INTEGER type = TYPE_FLOAT]]
 		][
 			value: arg
@@ -3089,7 +3167,7 @@ natives: context [
 		
 		switch type [
 			TYPE_PAIR [
-				p:  as red-pair! arg
+				p: as red-pair! arg
 				switch type2 [
 					TYPE_PAIR [
 						p2: as red-pair! arg2
@@ -3101,6 +3179,21 @@ natives: context [
 							if p/y > p2/y [p/y: p2/y]
 						]
 					]
+					TYPE_POINT2D [
+						pt: as red-point2D! arg			;-- promote argument to point2D!
+						pt/header: TYPE_POINT2D
+						pt/x: as-float32 p/x
+						pt/y: as-float32 p/y
+						
+						pt2: as red-point2D! arg2
+						either max? [
+							if any [pt/x < pt2/x float/NaN-f32? pt2/x] [pt/x: pt2/x]
+							if any [pt/y < pt2/y float/NaN-f32? pt2/y] [pt/y: pt2/y]
+						][
+							if any [pt/x > pt2/x float/NaN-f32? pt2/x] [pt/x: pt2/x]
+							if any [pt/y > pt2/y float/NaN-f32? pt2/y] [pt/y: pt2/y]
+						]
+					]
 					TYPE_FLOAT
 					TYPE_INTEGER [
 						i: arg-to-integer arg2
@@ -3110,6 +3203,76 @@ natives: context [
 						][
 							if p/x > i [p/x: i]
 							if p/y > i [p/y: i]
+						]
+						if arg <> stack/arguments [stack/set-last arg]
+					]
+					default [comp?: yes]
+				]
+			]
+			TYPE_POINT2D [
+				pt: as red-point2D! arg
+				switch type2 [
+					TYPE_POINT2D [
+						pt2: as red-point2D! arg2
+						either max? [
+							if any [pt/x < pt2/x float/NaN-f32? pt2/x] [pt/x: pt2/x]
+							if any [pt/y < pt2/y float/NaN-f32? pt2/y] [pt/y: pt2/y]
+						][
+							if any [pt/x > pt2/x float/NaN-f32? pt2/x] [pt/x: pt2/x]
+							if any [pt/y > pt2/y float/NaN-f32? pt2/y] [pt/y: pt2/y]
+						]
+					]
+					TYPE_PAIR [
+						p: as red-pair! arg2
+						either max? [
+							if pt/x < as-float32 p/x [pt/x: as-float32 p/x]
+							if pt/y < as-float32 p/y [pt/y: as-float32 p/y]
+						][
+							if pt/x > as-float32 p/x [pt/x: as-float32 p/x]
+							if pt/y > as-float32 p/y [pt/y: as-float32 p/y]
+						]
+					]
+					TYPE_FLOAT
+					TYPE_INTEGER [
+						f32: as-float32 arg-to-float arg2
+						either max? [
+							if any [pt/x < f32 float/NaN-f32? f32] [pt/x: f32]
+							if any [pt/y < f32 float/NaN-f32? f32] [pt/y: f32]
+						][
+							if any [pt/x > f32 float/NaN-f32? f32] [pt/x: f32]
+							if any [pt/y > f32 float/NaN-f32? f32] [pt/y: f32]
+						]
+						if arg <> stack/arguments [stack/set-last arg]
+					]
+					default [comp?: yes]
+				]
+			]
+			TYPE_POINT3D [
+				pt3: as red-point3D! arg
+				switch type2 [
+					TYPE_POINT3D [
+						pt3b: as red-point3D! arg2
+						either max? [
+							if any [pt3/x < pt3b/x float/NaN-f32? pt3b/x] [pt3/x: pt3b/x]
+							if any [pt3/y < pt3b/y float/NaN-f32? pt3b/y] [pt3/y: pt3b/y]
+							if any [pt3/z < pt3b/z float/NaN-f32? pt3b/z] [pt3/z: pt3b/z]
+						][
+							if any [pt3/x > pt3b/x float/NaN-f32? pt3b/x] [pt3/x: pt3b/x]
+							if any [pt3/y > pt3b/y float/NaN-f32? pt3b/y] [pt3/y: pt3b/y]
+							if any [pt3/z > pt3b/z float/NaN-f32? pt3b/z] [pt3/z: pt3b/z]
+						]
+					]
+					TYPE_FLOAT
+					TYPE_INTEGER [
+						f32: as-float32 arg-to-float arg2
+						either max? [
+							if any [pt3/x < f32 float/NaN-f32? f32] [pt3/x: f32]
+							if any [pt3/y < f32 float/NaN-f32? f32] [pt3/y: f32]
+							if any [pt3/z < f32 float/NaN-f32? f32] [pt3/z: f32]
+						][
+							if any [pt3/x > f32 float/NaN-f32? f32] [pt3/x: f32]
+							if any [pt3/y > f32 float/NaN-f32? f32] [pt3/y: f32]
+							if any [pt3/z > f32 float/NaN-f32? f32] [pt3/z: f32]
 						]
 						if arg <> stack/arguments [stack/set-last arg]
 					]
@@ -3167,10 +3330,26 @@ natives: context [
 			int/value
 		][
 			fl: as red-float! arg
-			if integer/overflow? fl [
+			if any [integer/overflow? fl float/NaN? fl/value][
 				fire [TO_ERROR(script type-limit) datatype/push TYPE_INTEGER]
 			]
 			as-integer fl/value
+		]
+	]
+
+	arg-to-float: func [
+		arg 	[red-value!]
+		return: [float!]
+		/local
+			fl	[red-float!]
+			int	[red-integer!]
+	][
+		either TYPE_OF(arg) = TYPE_INTEGER [
+			int: as red-integer! arg
+			as-float int/value
+		][
+			fl: as red-float! arg
+			fl/value
 		]
 	]
 
@@ -3593,6 +3772,8 @@ natives: context [
 			:uppercase*
 			:lowercase*
 			:as-pair*
+			:as-point2D*
+			:as-point3D*
 			:as-money*
 			:break*
 			:continue*
