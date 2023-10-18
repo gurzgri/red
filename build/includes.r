@@ -191,9 +191,9 @@ write %build/bin/sources.r set-cache [
 			%view.red
 			%draw.red
 			%rules.red
-			%styles.red
 			%utils.red
 			%RTD.red
+			%styles.red
 			%VID.red
 			%backends/ [
 				%keycodes.reds
@@ -216,6 +216,7 @@ write %build/bin/sources.r set-cache [
 					%panel.reds
 					%para.reds
 					%rules.red
+					%styles.red
 					%tab-panel.reds
 					%text-list.reds
 					%text-box.reds
@@ -234,6 +235,7 @@ write %build/bin/sources.r set-cache [
 					%menu.reds
 					%para.reds
 					%rules.red
+					%styles.red
 					%selectors.reds
 					%tab-panel.reds
 					%text-box.reds
@@ -253,6 +255,7 @@ write %build/bin/sources.r set-cache [
 					%menu.reds
 					%para.reds
 					%rules.red
+					%styles.red
 					%tab-panel.reds
 					%text-box.reds
 					%text-list.reds
@@ -263,6 +266,7 @@ write %build/bin/sources.r set-cache [
 					%events.reds
 					%gui.reds
 					%gui.red
+					%styles.red
 					%text-box.reds
 				]
 			]

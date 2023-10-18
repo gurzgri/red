@@ -78,6 +78,7 @@ system/view/platform: context [
 			
 			#enum flags-flag! [
 				FACET_FLAGS_ALL_OVER:	00000001h
+				FACET_FLAGS_FOCUSABLE:	00000002h
 				
 				FACET_FLAGS_TRISTATE:	00020000h
 				FACET_FLAGS_SCROLLABLE:	00040000h
@@ -273,6 +274,7 @@ system/view/platform: context [
 			_mini:			symbol/make "mini"
 			
 			all-over:		symbol/make "all-over"
+			focusable:		symbol/make "focusable"
 			over:			symbol/make "over"
 			draggable:		symbol/make "draggable"
 			resize:			symbol/make "resize"
@@ -567,6 +569,52 @@ system/view/platform: context [
 				pair/y: y
 				pair/header: TYPE_PAIR
 				pair
+			]
+
+			get-flags: func [
+				field	[red-block!]
+				return: [integer!]									;-- return a bit-array of all flags
+				/local
+					word  [red-word!]
+					len	  [integer!]
+					sym	  [integer!]
+					flags [integer!]
+			][
+				switch TYPE_OF(field) [
+					TYPE_BLOCK [
+						word: as red-word! block/rs-head field
+						len: block/rs-length? field
+						if zero? len [return 0]
+					]
+					TYPE_WORD [
+						word: as red-word! field
+						len: 1
+					]
+					default [return 0]
+				]
+				flags: 0
+				
+				loop len [
+					sym: symbol/resolve word/symbol
+					case [
+						sym = all-over	 [flags: flags or FACET_FLAGS_ALL_OVER]
+						sym = focusable	 [flags: flags or FACET_FLAGS_FOCUSABLE]
+						sym = resize	 [flags: flags or FACET_FLAGS_RESIZE]
+						sym = no-title	 [flags: flags or FACET_FLAGS_NO_TITLE]
+						sym = no-border  [flags: flags or FACET_FLAGS_NO_BORDER]
+						sym = no-min	 [flags: flags or FACET_FLAGS_NO_MIN]
+						sym = no-max	 [flags: flags or FACET_FLAGS_NO_MAX]
+						sym = no-buttons [flags: flags or FACET_FLAGS_NO_BTNS]
+						sym = modal		 [flags: flags or FACET_FLAGS_MODAL]
+						sym = popup		 [flags: flags or FACET_FLAGS_POPUP]
+						sym = tri-state  [flags: flags or FACET_FLAGS_TRISTATE]
+						sym = scrollable [flags: flags or FACET_FLAGS_SCROLLABLE]
+						sym = password	 [flags: flags or FACET_FLAGS_PASSWORD]
+						true			 [fire [TO_ERROR(script invalid-arg) word]]
+					]
+					word: word + 1
+				]
+				flags
 			]
 
 			#switch GUI-engine [

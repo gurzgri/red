@@ -12,6 +12,18 @@ Red [
 
 system/view/VID: context [
 	styles: #include %styles.red
+	extras: #switch config/GUI-engine [
+		;TUI		 []
+		test	 [#include %backends/test/styles.red]
+		#default [
+			#switch config/OS [
+				Windows [#include %backends/windows/styles.red]
+				macOS	[#include %backends/macOS/styles.red]
+				Linux	[#include %backends/gtk3/styles.red]
+			]
+		]
+	]
+	extend styles extras
 	
 	GUI-rules: context [
 		active?: yes
@@ -57,8 +69,9 @@ system/view/VID: context [
 	]
 	
 	debug?: 	no
-	pos-size!: make typeset! [pair! point2D!]
-	
+	origin:		10x10
+	spacing:	10x10
+	pos-size!: 	make typeset! [pair! point2D!]
 	containers: [panel tab-panel group-box]
 	
 	default-font: [
@@ -315,17 +328,17 @@ system/view/VID: context [
 				| 'font-color (add-flag opts 'font 'color pre-load fetch-argument color! spec)
 				| 'options	  (add-option opts fetch-argument block! spec)
 				| 'loose	  (add-option opts compose [drag-on: 'down] add-bounds opts back spec)
-				| 'all-over   (set-flag opts 'flags 'all-over)
-				| 'password   (set-flag opts 'flags 'password)
-				| 'tri-state  (set-flag opts 'flags 'tri-state)
-				| 'scrollable (set-flag opts 'flags 'scrollable)
+				| 'all-over   (set-flag opts 'all-over)
+				| 'password   (set-flag opts 'password)
+				| 'tri-state  (set-flag opts 'tri-state)
+				| 'scrollable (set-flag opts 'scrollable)
 				| 'hidden	  (opts/visible?: no)
 				| 'disabled	  (opts/enabled?: no)
 				| 'select	  (opts/selected: fetch-argument sel-spec! spec)
 				| 'rate		  (opts/rate: fetch-argument rate! spec)
 				   opt [rate! 'now (opts/now?: yes spec: next spec)]
 				| 'default 	  (opts/data: add-option opts append copy [default: ] fetch-value spec: next spec)
-				| 'no-border  (set-flag opts 'flags 'no-border)
+				| 'no-border  (set-flag opts 'no-border)
 				| 'space	  (opt?: no)				;-- avoid wrongly reducing that word
 				| 'hint	  	  (add-option opts compose [hint: (fetch-argument string! spec)])
 				| 'cursor	  (add-option opts compose [cursor: (pre-load fetch-argument cursor! spec)])
@@ -457,7 +470,7 @@ system/view/VID: context [
 				unless find actors name [repend actors [name f s b]]
 			]
 		]
-		if opts/flags [opts/flags: set-flag face 'flags opts/flags]	;-- pre-merge /flags facets
+		if opts/flags [opts/flags: set-flag face opts/flags]	;-- pre-merge /flags facets
 		
 		set/some face opts								;-- merge default+styles and user options
 		
@@ -551,7 +564,12 @@ system/view/VID: context [
 		global?: 	  yes								;-- TRUE: panel options expected
 		below?: 	  no
 		
-		top-left: bound: cursor: origin: spacing: pick [0x0 10x10] tight
+		
+		either tight [origin: spacing: 0x0][
+			origin:  any [select self/styles @origin  self/origin]
+			spacing: any [select self/styles @spacing self/spacing]
+		]
+		top-left: bound: cursor: origin
 		
 		opts: copy opts-proto
 		

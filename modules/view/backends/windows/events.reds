@@ -24,7 +24,6 @@ paint: declare tagPAINTSTRUCT							;-- moved here from 'draw.reds'
 gui-evt: declare red-event!								;-- low-level event value slot
 gui-evt/header: TYPE_EVENT
 
-oldBaseWndProc:	 0
 modal-loop-type: 0										;-- remanence of last EVT_MOVE or EVT_SIZE
 zoom-distance:	 0
 special-key: 	-1										;-- <> -1 if a non-displayable key is pressed
@@ -730,6 +729,7 @@ process-command-event: func [
 				all [
 					sym = radio								;-- ignore double-click (fixes #4246)
 					BST_CHECKED <> (BST_CHECKED and as integer! SendMessage child BM_GETSTATE 0 0)
+					(GetKeyState VK_TAB) and 8000h = 0
 				][
 					get-logic-state current-msg
 					EVT_CLICK								;-- gets converted to CHANGE by high-level event handler
@@ -1309,32 +1309,13 @@ WndProc: func [
 					][FACE_OBJ_SIZE]
 					if miniz? [return 0]
 
-					x: 0 y: 0
-					modal-loop-type: either msg = WM_MOVE [
-						pos: GetWindowLong hWnd wc-offset - 16	;-- get border size
-						either zero? pos [
-							window-border-info? hWnd :x :y null null
-							SetWindowLong hWnd wc-offset - 16 x << 16 or (y and FFFFh)
-						][
-							x: WIN32_HIWORD(pos)
-							y: WIN32_LOWORD(pos)
-						]
+					res: either msg = WM_MOVE [
 						SetWindowLong hWnd wc-offset - 8 lParam
-						EVT_MOVING
-					][EVT_SIZING]
-					SetWindowLong hWnd wc-offset - 24 modal-loop-type
+						EVT_MOVE
+					][EVT_SIZE]
 					current-msg/hWnd: hWnd
 					current-msg/lParam: lParam
-					make-event current-msg 0 modal-loop-type
-
-					offset: as red-point2D! values + type
-					offset/header: TYPE_POINT2D
-					offset/x: dpi-unscale as float32! WIN32_LOWORD(lParam) + x
-					offset/y: dpi-unscale as float32! WIN32_HIWORD(lParam) + y
-					if all [
-						type = FACE_OBJ_SIZE
-						SIZE_FACET_PAIR?(hwnd)
-					][as-pair offset]
+					make-event current-msg 0 res
 
 					values: values + FACE_OBJ_STATE
 					if all [
@@ -1348,24 +1329,52 @@ WndProc: func [
 				]
 			]
 		]
-		;WM_MOVING
-		;WM_SIZING [
-			;pair: as red-pair! stack/arguments
-			;if TYPE_OF(pair) = TYPE_PAIR [
-			;	either msg = WM_MOVING [
-			;		pt: screen-to-client hWnd rc/left rc/top
-			;		rc/left:   pair/x	 + pt/x
-			;		rc/top:	   pair/y	 + pt/y
-			;		rc/right:  rc/right	 + pt/x
-			;		rc/bottom: rc/bottom + pt/y
-			;	][
-			;		pt: delta-size hWnd
-			;		rc/right:  rc/left + pair/x + pt/x
-			;		rc/bottom: rc/top + pair/y + pt/y
-			;	]
-			;]
-			;return 1									;-- TRUE
-		;]
+		WM_MOVING
+		WM_SIZING [
+			if type = window [
+				if null? current-msg [init-current-msg]
+				current-msg/hWnd: hWnd
+
+				x: 0 y: 0
+				pos: GetWindowLong hWnd wc-offset - 16	;-- get border size
+				either zero? pos [
+					window-border-info? hWnd :x :y null null
+					SetWindowLong hWnd wc-offset - 16 x << 16 or (y and FFFFh)
+				][
+					x: WIN32_HIWORD(pos)
+					y: WIN32_LOWORD(pos)
+				]
+				rc: as RECT_STRUCT lParam
+				type: either msg = WM_MOVING [
+					x: rc/left - x
+					y: rc/top - y
+					SetWindowLong hWnd wc-offset - 8 y << 16 or x
+					modal-loop-type: EVT_MOVING
+					FACE_OBJ_OFFSET
+				][
+					y: rc/bottom - rc/top + x + y
+					x: rc/right - rc/left + x + x
+					modal-loop-type: EVT_SIZING
+					FACE_OBJ_SIZE
+				]
+
+				SetWindowLong hWnd wc-offset - 24 modal-loop-type
+				offset: as red-point2D! values + type
+				offset/header: TYPE_POINT2D
+				offset/x: dpi-unscale as float32! x
+				offset/y: dpi-unscale as float32! y
+				current-msg/lParam: y << 16 or x
+				if all [
+					type = FACE_OBJ_SIZE
+					SIZE_FACET_PAIR?(hwnd)
+				][as-pair offset]
+				make-event current-msg 0 modal-loop-type
+
+				;-- in case the users change the offset/size in the event handlers
+				;@@ TBD
+				return 1									;-- TRUE
+			]
+		]
 		WM_ENTERSIZEMOVE [
 			if type = window [win-state: 1]
 		]
