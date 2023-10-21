@@ -1,5 +1,6 @@
 Red/System []
 
+#if debug? = yes [
 𝐇eap!: alias struct! [
 	data          [byte-ptr!]
 	size          [integer!]
@@ -75,60 +76,67 @@ Red/System []
 
 	Heap: declare byte-ptr!
 	Heap: null
-]
+]]
 
 𝐀llocate: func [
 	bytes           [integer!]
 	return:         [byte-ptr!]
+][
+#either debug? = no [
+	return allocate bytes
 ][
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(internal no-memory)]
 	]
 
 	return 𝐌emory/HeapAlloc 𝐌emory/Heap 8 bytes                                ;-- HEAP_ZERO_MEMORY
-]
+]]
 
 𝐅ree: func [
 	memory          [byte-ptr!]
 	return:         [integer!]
+][
+#either debug? = no [
+	free memory
+	return 0
 ][
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(internal wrong-mem)]
 	]
 
 	return 𝐌emory/HeapFree 𝐌emory/Heap 0 memory
-]
+]]
 
-𝐇eapCreate: func [] [
+𝐇eapCreate: func [] [#either debug? = no [] [
 	𝐌emory/Heap: 𝐌emory/HeapCreate 0 0 0
-]
+]]
 
-𝐇eapDestroy: func [] [
+𝐇eapDestroy: func [] [#either debug? = no [] [
 	𝐌emory/HeapDestroy 𝐌emory/Heap
 	𝐌emory/Heap: null
-]
+]]
 
-𝐕alidate: func [] [
+𝐕alidate: func [] [#either debug? = no [] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(script past-end)]
 	]
-]
+]]
 
-𝐕alidBefore: func [] [
+𝐕alidBefore: func [] [#either debug? = no [] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		print ["*** heap validity pre-condition failed" lf]
 		fire [TO_ERROR(script past-end)]
 	]
-]
+]]
 
-𝐕alidAfter: func [] [
+𝐕alidAfter: func [] [#either debug? = no [] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		print ["*** heap validity post-condition failed" lf]
 		fire [TO_ERROR(script past-end)]
 	]
-]
+]]
 
-𝐇eap: func [
+𝐇eap: #either debug? = no [func [] []] [func [
 	/local
 		i           [integer!]
 		rc          [integer!]
@@ -158,5 +166,5 @@ Red/System []
 		unless zero? (step/flags >> 8 and 0020h) [print ["ddeshare"    space]]
 		print [lf]
 	]
-]
+]]
 
