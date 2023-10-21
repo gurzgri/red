@@ -17,4 +17,4 @@ REBOL [
 	View		%modules/view/view.red				[Windows macOS Linux]
 	JSON		%environment/codecs/JSON.red		all
 	CSV 		%environment/codecs/CSV.red			all
-	ODBC		%environment/schemes/odbc.red		[Windows]
+	ODBC		%environment/schemes/odbc.red		[Windows Linux]

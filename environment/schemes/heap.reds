@@ -1,6 +1,6 @@
 Red/System []
 
-#if debug? = yes [
+#if all [OS = 'Windows debug? = yes] [
 𝐇eap!: alias struct! [
 	data          [byte-ptr!]
 	size          [integer!]
@@ -82,61 +82,61 @@ Red/System []
 	bytes           [integer!]
 	return:         [byte-ptr!]
 ][
-#either debug? = no [
-	return allocate bytes
-][
+#either all [OS = 'Windows debug? = yes] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(internal no-memory)]
 	]
 
 	return 𝐌emory/HeapAlloc 𝐌emory/Heap 8 bytes                                ;-- HEAP_ZERO_MEMORY
+][
+	return allocate bytes
 ]]
 
 𝐅ree: func [
 	memory          [byte-ptr!]
 	return:         [integer!]
 ][
-#either debug? = no [
-	free memory
-	return 0
-][
+#either all [OS = 'Windows debug? = yes] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(internal wrong-mem)]
 	]
 
 	return 𝐌emory/HeapFree 𝐌emory/Heap 0 memory
+][
+	free memory
+	return 0
 ]]
 
-𝐇eapCreate: func [] [#either debug? = no [] [
+𝐇eapCreate: func [] [#either all [OS = 'Windows debug? = yes] [
 	𝐌emory/Heap: 𝐌emory/HeapCreate 0 0 0
-]]
+][]]
 
-𝐇eapDestroy: func [] [#either debug? = no [] [
+𝐇eapDestroy: func [] [#either all [OS = 'Windows debug? = yes] [
 	𝐌emory/HeapDestroy 𝐌emory/Heap
 	𝐌emory/Heap: null
-]]
+][]]
 
-𝐕alidate: func [] [#either debug? = no [] [
+𝐕alidate: func [] [#either all [OS = 'Windows debug? = yes][
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		fire [TO_ERROR(script past-end)]
 	]
-]]
+][]]
 
-𝐕alidBefore: func [] [#either debug? = no [] [
+𝐕alidBefore: func [] [#either all [OS = 'Windows debug? = yes] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		print ["*** heap validity pre-condition failed" lf]
 		fire [TO_ERROR(script past-end)]
 	]
-]]
+][]]
 
-𝐕alidAfter: func [] [#either debug? = no [] [
+𝐕alidAfter: func [] [#either all [OS = 'Windows debug? = yes] [
 	if zero? 𝐌emory/HeapValidate 𝐌emory/Heap 0 null [
 		print ["*** heap validity post-condition failed" lf]
 		fire [TO_ERROR(script past-end)]
 	]
-]]
+][]]
 
-𝐇eap: #either debug? = no [func [] []] [func [
+𝐇eap: #either all [OS = 'Windows debug? = yes] [func [
 	/local
 		i           [integer!]
 		rc          [integer!]
@@ -166,5 +166,6 @@ Red/System []
 		unless zero? (step/flags >> 8 and 0020h) [print ["ddeshare"    space]]
 		print [lf]
 	]
-]]
-
+]][
+	func [] []
+]

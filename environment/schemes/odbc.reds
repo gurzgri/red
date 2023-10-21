@@ -18,7 +18,7 @@ Red/System [
 		#define ODBC_LIBRARY "odbc.dylib"
 	]
 	#default [
-		#define ODBC_LIBRARY "libodbc.so.2"
+		#define ODBC_LIBRARY "libodbc.so.2.0.0"
 	]
 
 ]
@@ -2269,7 +2269,7 @@ sql: context [
 	;   Compare https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/unicode-function-arguments?view=sql-server-2017
 	;   for functions having both ANSI (A) and Unicode (W) versions
 
-	#import [ODBC_LIBRARY stdcall [
+	#import [ODBC_LIBRARY cdecl [
 
 		SQLAllocHandle: "SQLAllocHandle" [
 			type                    [integer!]
