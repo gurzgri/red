@@ -13,12 +13,15 @@ Red/System [
 
 	Windows [
 		#define ODBC_LIBRARY "odbc32.dll"
+		#define ODBC_CONVENTION stdcall
 	]
 	macOS [
 		#define ODBC_LIBRARY "odbc.dylib"
+		#define ODBC_CONVENTION cdecl
 	]
 	#default [
 		#define ODBC_LIBRARY "libodbc.so.2.0.0"
+		#define ODBC_CONVENTION cdecl
 	]
 
 ]
@@ -2269,7 +2272,7 @@ sql: context [
 	;   Compare https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/unicode-function-arguments?view=sql-server-2017
 	;   for functions having both ANSI (A) and Unicode (W) versions
 
-	#import [ODBC_LIBRARY cdecl [
+	#import [ODBC_LIBRARY ODBC_CONVENTION [
 
 		SQLAllocHandle: "SQLAllocHandle" [
 			type                    [integer!]
