@@ -232,6 +232,13 @@ system/view/VID: context [
 		value
 	]
 	
+	preset-focus: function [face [object!]][
+		if p: face/parent [								;-- in styling mode, no parent
+			while [all [p p/type <> 'window]][p: p/parent]
+			if p/type = 'window [p/selected: face]
+		]
+	]
+	
 	add-option: function [opts [object!] spec [block!]][
 		either block? opts/options [
 			foreach [field value] spec [put opts/options field value]
@@ -257,7 +264,9 @@ system/view/VID: context [
 	]													;-- returns TRUE if added
 	
 	add-bounds: func [proto [object!] spec [block!]][
-		make-actor proto 'on-drag-start [object [min: 0x0 max: face/parent/size - face/size]] spec
+		make-actor proto 'on-drag-start [
+			unless face/options/bounds [object [min: 0x0 max: face/parent/size - face/size]]
+		] spec
 	]
 	
 	fetch-value: function [blk][
@@ -322,7 +331,7 @@ system/view/VID: context [
 				| 'para		  (opts/para: make any [opts/para para!] fetch-argument obj-spec! spec)
 				| 'wrap		  (opt?: add-flag opts 'para 'wrap? yes)
 				| 'no-wrap	  (add-flag opts 'para 'wrap? no opt?: yes)
-				| 'focus	  (set bind 'focal-face :layout face)
+				| 'focus	  (preset-focus face)
 				| 'font-name  (add-flag opts 'font 'name  fetch-argument string! spec)
 				| 'font-size  (add-flag opts 'font 'size  fetch-argument integer! spec)
 				| 'font-color (add-flag opts 'font 'color pre-load fetch-argument color! spec)
@@ -549,6 +558,7 @@ system/view/VID: context [
 		/styles					"Use an existing styles list"
 			css		  [block!]	"Styles list"
 		/local axis anti								;-- defined in a SET block
+		/extern next
 	][
 		background!:  make typeset! [image! file! url! tuple! word! issue!]
 		list:		  make block! 4						;-- panel's pane block
@@ -708,7 +718,7 @@ system/view/VID: context [
 					unless styling? [face/parent: panel]
 
 					spec: fetch-options face opts style spec local-styles reactors to-logic styling?
-					if all [style/init not styling?][do bind style/init 'face]
+					if all [style/init not styling?][do bind style/init face]
 
 					either styling? [
 						if same? css local-styles [local-styles: copy css]
@@ -729,7 +739,7 @@ system/view/VID: context [
 						repend value [to-set-word 'styled styled]
 						styling?: off
 					][
-						blk: [style: _ vid-align: _ at-offset: #[none]]
+						blk: [style: _ vid-align: _ at-offset: #[none] next: #[none] prev: #[none]]
 						blk/2: value
 						blk/4: align
 						add-option face new-line/all blk no
@@ -798,8 +808,6 @@ system/view/VID: context [
 				]
 			]
 			if all [not size image: panel/image][panel/size: max panel/size image/size]
-
-			if all [focal-face find panel/pane focal-face not parent][panel/selected: focal-face]
 
 			if options [set/some panel make object! user-opts]
 			if flags [panel/flags: either panel/flags [unique union to-block panel/flags to-block flgs][flgs]]

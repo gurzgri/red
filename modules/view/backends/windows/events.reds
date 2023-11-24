@@ -704,7 +704,7 @@ process-command-event: func [
 		BN_CLICKED [
 			type: as red-word! get-facet current-msg FACE_OBJ_TYPE
 			sym: symbol/resolve type/symbol
-			current-msg/hWnd: child							;-- force child handle
+			current-msg/hWnd: child						;-- force child handle
 			
 			evt: case [
 				sym = button [EVT_CLICK]
@@ -715,7 +715,7 @@ process-command-event: func [
 				sym = check [
 					if 0 <> (FACET_FLAGS_TRISTATE and get-flags as red-block! get-facet current-msg FACE_OBJ_FLAGS)[
 						state: as integer! SendMessage child BM_GETCHECK 0 0
-						state: switch state [				;-- force [ ] -> [-] -> [v] transition
+						state: switch state [			;-- force [ ] -> [-] -> [v] transition
 							BST_UNCHECKED     [BST_CHECKED]
 							BST_INDETERMINATE [BST_UNCHECKED]
 							BST_CHECKED       [BST_INDETERMINATE]
@@ -727,24 +727,27 @@ process-command-event: func [
 					EVT_CHANGE
 				]
 				all [
-					sym = radio								;-- ignore double-click (fixes #4246)
+					sym = radio							;-- ignore double-click (fixes #4246)
 					BST_CHECKED <> (BST_CHECKED and as integer! SendMessage child BM_GETSTATE 0 0)
 					(GetKeyState VK_TAB) and 8000h = 0
 				][
 					get-logic-state current-msg
-					EVT_CLICK								;-- gets converted to CHANGE by high-level event handler
+					EVT_CLICK							;-- gets converted to CHANGE by high-level event handler
 				]
 				true [0]
 			]
 			
-			unless zero? evt [make-event current-msg 0 evt]	;-- should be *after* get-facet call (Windows closing on click case)
+			unless zero? evt [
+				make-at child as red-object! (get-face-values GetAncestor child 3) + FACE_OBJ_SELECTED
+				make-event current-msg 0 evt			;-- should be *after* get-facet call (Windows closing on click case)
+			]
 		]
 		BN_UNPUSHED [ ;-- overlapped with CBN_SETFOCUS
 			type: as red-word! get-facet current-msg FACE_OBJ_TYPE
 			either type/symbol = radio [
-				current-msg/hWnd: child						;-- force child handle
+				current-msg/hWnd: child					;-- force child handle
 				unless as logic! SendMessage child BM_GETSTATE 0 0 [
-					make-event current-msg 0 EVT_CHANGE		;-- ignore double-click (fixes #4246)
+					make-event current-msg 0 EVT_CHANGE	;-- ignore double-click (fixes #4246)
 				]
 			][		;-- CBN_SETFOCUS
 				values: get-face-values hWnd
@@ -1252,8 +1255,8 @@ WndProc: func [
 		miniz? [logic!]
 		font?  [logic!]
 		dark?  [logic!]
-		x	   [integer!]
-		y	   [integer!]
+		x xx   [integer!]
+		y yy   [integer!]
 		ShouldAppsUseDarkMode [ShouldAppsUseDarkMode!]
 ][
 	if no-face? hWnd [return DefWindowProc hWnd msg wParam lParam]
@@ -1309,13 +1312,35 @@ WndProc: func [
 					][FACE_OBJ_SIZE]
 					if miniz? [return 0]
 
+					xx: WIN32_LOWORD(lParam)
+					yy: WIN32_HIWORD(lParam)
+					x: 0 y: 0
 					res: either msg = WM_MOVE [
+						pos: GetWindowLong hWnd wc-offset - 16	;-- get border size
+						either zero? pos [
+							window-border-info? hWnd :x :y null null
+							SetWindowLong hWnd wc-offset - 16 x << 16 or (y and FFFFh)
+						][
+							x: WIN32_HIWORD(pos)
+							y: WIN32_LOWORD(pos)
+						]
 						SetWindowLong hWnd wc-offset - 8 lParam
+						xx: xx + x
+						yy: yy + y
 						EVT_MOVE
 					][EVT_SIZE]
 					current-msg/hWnd: hWnd
 					current-msg/lParam: lParam
 					make-event current-msg 0 res
+
+					offset: as red-point2D! values + type
+					offset/header: TYPE_POINT2D
+					offset/x: dpi-unscale as float32! xx
+					offset/y: dpi-unscale as float32! yy
+					if all [
+						type = FACE_OBJ_SIZE
+						SIZE_FACET_PAIR?(hwnd)
+					][as-pair offset]
 
 					values: values + FACE_OBJ_STATE
 					if all [
@@ -1346,9 +1371,9 @@ WndProc: func [
 				]
 				rc: as RECT_STRUCT lParam
 				type: either msg = WM_MOVING [
-					x: rc/left - x
-					y: rc/top - y
-					SetWindowLong hWnd wc-offset - 8 y << 16 or x
+					SetWindowLong hWnd wc-offset - 8 rc/top - y << 16 or (rc/left - x)
+					x: rc/left
+					y: rc/top
 					modal-loop-type: EVT_MOVING
 					FACE_OBJ_OFFSET
 				][
