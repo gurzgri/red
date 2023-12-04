@@ -1174,6 +1174,19 @@ Red [
 		--assert not error? try [b939/(#"x")]
 		--assert equal? #"y" b939/(#"x")
 		unset 'b939
+		
+	--test-- "#941"
+		foo941: function [a b] [
+			c: 10
+			d: 20
+			return [--assert true c --assert false d --assert false]
+		] 
+		--assert error? try [reduce foo941 1 2]
+		
+		foo941.2: function [a b] [c: 10 d: 20 return [c d]]
+		set 'err941 try [reduce foo941.2 1 2]
+		--assert error? :err941
+		--assert err941/arg1 = 'c
 
 	; --test-- "#943"
 		a943: none
@@ -2634,6 +2647,9 @@ b}
 
 	--test-- "#2125"
 		--assert 2 = length? find/only reduce [integer! 1] integer!
+		
+	--test-- "#2126"
+		--assert [a] = remove-each val [a 1] [not any-word? val]
 
 	; --test-- "#2133"
 		; OPEN
@@ -3592,6 +3608,10 @@ comment {
 		i5422: last s5422: [1 2 3 4 5]
 		forall s5422 [if even? s5422/1 [append s5422 i5422: i5422 + 1]]
 		--assert s5422 = [1 2 3 4 5 6 7 8 9]
+
+	--test-- "#5434"
+		f5434: func [][] 	 --assert error? try [apply 'f5434 [/x on 1 /y on 2]]
+		f5434.2: func [/z][] --assert error? try [apply 'f5434.2 [/x on 1 /y on 2]]
 
 ===end-group===
 
