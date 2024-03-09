@@ -474,6 +474,10 @@ system/view/VID: context [
 				if none? face-font/:field [face-font/:field: get value]
 			]
 		]
+		if all [opts/para face/para][
+			set/some face/para opts/para
+			opts/para: face/para
+		]
 		if all [block? face/actors block? actors: opts/actors][
 			foreach [name f s b] face/actors [
 				unless find actors name [repend actors [name f s b]]
@@ -739,7 +743,7 @@ system/view/VID: context [
 						repend value [to-set-word 'styled styled]
 						styling?: off
 					][
-						blk: [style: _ vid-align: _ at-offset: #[none] next: #[none] prev: #[none]]
+						blk: [style: _ vid-align: _ at-offset: #(none) next: #(none) prev: #(none)]
 						blk/2: value
 						blk/4: align
 						add-option face new-line/all blk no
@@ -770,6 +774,7 @@ system/view/VID: context [
 
 							if all [divide? index > 0][
 								index: index + 1
+								if point2D? list/:index/offset [face/offset: to-point2D face/offset]
 								face/offset/:axis: list/:index/offset/:axis
 							]
 						]

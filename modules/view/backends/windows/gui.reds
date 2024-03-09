@@ -85,7 +85,7 @@ ime-font:		as tagLOGFONT allocate 92
 base-down-hwnd: as handle! 0
 
 dpi-factor:		as float32! 1.0
-inital-dpi:		96
+current-dpi:	96
 log-pixels-x:	0
 log-pixels-y:	0
 screen-size-x:	0
@@ -776,8 +776,6 @@ set-defaults: func [
 			len
 			#get system/view/fonts/system
 			UTF-16LE
-
-		font/lfHeight: font/lfHeight * log-pixels-y / inital-dpi	;-- font/lfHeight isn't affected by DPI change, we update it manually
 		integer/make-at 
 			#get system/view/fonts/size
 			0 - (font/lfHeight * 72 / log-pixels-y)
@@ -834,7 +832,7 @@ get-dpi: func [
 		log-pixels-x: GetDeviceCaps hScreen 88			;-- LOGPIXELSX
 		log-pixels-y: GetDeviceCaps hScreen 90			;-- LOGPIXELSY
 	]
-	inital-dpi: log-pixels-x
+	current-dpi: log-pixels-x
 	dpi-factor: (as float32! log-pixels-x) / as float32! 96.0
 ]
 
@@ -1930,6 +1928,15 @@ change-size: func [
 		type = scroller  [
 			;; TBD
 			0
+		]
+		type = group-box [
+			hWnd: as handle! GetWindowLong hWnd wc-offset - 4	;-- change frame's size too
+			SetWindowPos 
+					hWnd
+					as handle! 0
+					0 0
+					sz-x + cx sz-y + cy
+					SWP_NOMOVE or SWP_NOZORDER or SWP_NOACTIVATE
 		]
 		type = area		 [update-scrollbars hWnd null]
 		type = tab-panel [update-tab-contents hWnd FACE_OBJ_SIZE]

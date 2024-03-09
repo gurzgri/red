@@ -1056,6 +1056,8 @@ set-window-info: func [
 		pair	[red-pair!]
 		info	[tagMINMAXINFO]
 		ret?	[logic!]
+		pt		[red-point2D!]
+		sx sy	[integer!]
 ][
 	ret?: no
 	unless no-face? hWnd [
@@ -1066,14 +1068,15 @@ set-window-info: func [
 		window-border-info? hWnd :x :y :cx :cy
 		values: get-face-values hWnd
 		pair: as red-pair! values + FACE_OBJ_SIZE
+		GET_PAIR_XY_INT(pair sx sy)
 		info: as tagMINMAXINFO lParam
-		cx: pair/x + cx
-		cy: pair/y + cy
+		cx: sx + cx
+		cy: sy + cy
 
-		if pair/x > info/ptMaxSize.x [info/ptMaxSize.x: cx ret?: yes]
-		if pair/y > info/ptMaxSize.y [info/ptMaxSize.y: cy ret?: yes]
-		if pair/x > info/ptMaxTrackSize.x [info/ptMaxTrackSize.x: cx ret?: yes]
-		if pair/y > info/ptMaxTrackSize.y [info/ptMaxTrackSize.y: cy ret?: yes]
+		if sx > info/ptMaxSize.x [info/ptMaxSize.x: cx ret?: yes]
+		if sy > info/ptMaxSize.y [info/ptMaxSize.y: cy ret?: yes]
+		if sx > info/ptMaxTrackSize.x [info/ptMaxTrackSize.x: cx ret?: yes]
+		if sy > info/ptMaxTrackSize.y [info/ptMaxTrackSize.y: cy ret?: yes]
 	]
 	ret?
 ]
@@ -1114,7 +1117,7 @@ update-window: func [
 		tail	[red-object!]
 		values	[red-value!]
 		sz		[red-pair!]
-		pos		[red-point2D!]
+		pos pt	[red-point2D!]
 		font	[red-object!]
 		word	[red-word!]
 		type	[integer!]
@@ -1122,6 +1125,7 @@ update-window: func [
 		hdwp	[handle!]
 		target	[integer!]
 		hfont	[handle!]
+		x y		[float32!]
 ][
 	if null? fonts [
 		get-metrics
@@ -1148,12 +1152,13 @@ update-window: func [
 					SetWindowLong hWnd wc-offset - 36 0
 				]
 			]
+			GET_PAIR_XY(sz x y)
 			hdwp: DeferWindowPos
 				hdwp
 				hWnd
 				null
 				dpi-scale pos/x dpi-scale pos/y
-				dpi-scale as float32! sz/x dpi-scale as float32!  sz/y
+				dpi-scale x dpi-scale y
 				SWP_NOZORDER or SWP_NOACTIVATE
 
 			child: as red-block! values + FACE_OBJ_PANE
@@ -1178,7 +1183,7 @@ update-window: func [
 					hWnd
 					null
 					0 0
-					dpi-scale as float32! sz/x dpi-scale as float32! sz/y
+					dpi-scale x dpi-scale y
 					SWP_NOZORDER or SWP_NOACTIVATE
 			]
 		]
@@ -1329,9 +1334,6 @@ WndProc: func [
 						yy: yy + y
 						EVT_MOVE
 					][EVT_SIZE]
-					current-msg/hWnd: hWnd
-					current-msg/lParam: lParam
-					make-event current-msg 0 res
 
 					offset: as red-point2D! values + type
 					offset/header: TYPE_POINT2D
@@ -1341,6 +1343,10 @@ WndProc: func [
 						type = FACE_OBJ_SIZE
 						SIZE_FACET_PAIR?(hwnd)
 					][as-pair offset]
+
+					current-msg/hWnd: hWnd
+					current-msg/lParam: yy << 16 or (xx and FFFFh)
+					make-event current-msg 0 res
 
 					values: values + FACE_OBJ_STATE
 					if all [
@@ -1371,7 +1377,7 @@ WndProc: func [
 				]
 				rc: as RECT_STRUCT lParam
 				type: either msg = WM_MOVING [
-					SetWindowLong hWnd wc-offset - 8 rc/top - y << 16 or (rc/left - x)
+					SetWindowLong hWnd wc-offset - 8 rc/top - y << 16 or (rc/left - x and FFFFh)
 					x: rc/left
 					y: rc/top
 					modal-loop-type: EVT_MOVING
@@ -1388,7 +1394,7 @@ WndProc: func [
 				offset/header: TYPE_POINT2D
 				offset/x: dpi-unscale as float32! x
 				offset/y: dpi-unscale as float32! y
-				current-msg/lParam: y << 16 or x
+				current-msg/lParam: y << 16 or (x and FFFFh)
 				if all [
 					type = FACE_OBJ_SIZE
 					SIZE_FACET_PAIR?(hwnd)
@@ -1765,6 +1771,7 @@ process: func [
 				word: (as red-word! get-face-values hWnd) + FACE_OBJ_TYPE
 				if base = symbol/resolve word/symbol [ReleaseCapture]	;-- issue #4384
 			]
+			key-flags: flags
 			res: make-event msg flags EVT_LEFT_UP
 			prev-captured: null
 			res

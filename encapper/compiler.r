@@ -524,7 +524,7 @@ red: context [
 					attempt [idx: get-word-index/with name ctx]
 				][
 					repend blk [
-						'word/push-local
+						pick [get-word/push-local word/push-local] get-word? original
 						either parent-object? obj ['octx][ctx] ;-- optional parametrized context reference (octx)
 						idx
 					]
@@ -1256,10 +1256,10 @@ red: context [
 		flags: 0
 		foreach attrib spec/1 [
 			unless word? attrib [do-error]
-			flags: switch attrib [						;-- keep those flags synced with %runtime/definitions.reds
+			flags: switch/default attrib [				;-- keep those flags synced with %runtime/definitions.reds
 				trace	 [flags or to-integer #{00000400}]
 				no-trace [flags or to-integer #{00000200}]
-			]
+			][0]
 		]
 		flags
 	]

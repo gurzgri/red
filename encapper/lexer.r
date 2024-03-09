@@ -270,13 +270,13 @@ lexer: context [
 	]
 	
 	map-rule: [
-		"#(" (stack/allocate block! 10) any-value #")" (
+		"#[" (stack/allocate block! 10) any-value #"]" (
 			stack/prefix #!map!
 			value: stack/pop block!
 		)
 	]
 	
-	issue-rule: [#"#" (type: issue!) s: any [symbol-rule | #":"] e:]
+	issue-rule: [#"#" (type: issue!) s: any [symbol-rule | #"#" | #":"] e:]
 	
 	ref-rule: [(stop: [not-ref-char]) #"@" s: any UTF8-filtered-char e:]
 	
@@ -623,12 +623,13 @@ lexer: context [
 	]
 
 	escaped-rule: [
-		"#[" any-ws [
+		pos: mark: "#(" any-ws [
 			  "true"  (value: true)
 			| "false" (value: false)
 			| s: [3 20 [alpha | #"-"] #"!"] e: (value: rejoin [#!~ copy/part s e])
 			| "none" (value: none)
-		]  any-ws #"]"
+			| (pos: mark throw-error/with "invalid construction syntax")
+		]  any-ws #")"
 	]
 	
 	comment-rule: [#";" [to #"^/" | to end]]

@@ -46,6 +46,12 @@ log-pixels-y:		0
 screen-size-x:		0
 screen-size-y:		0
 
+#define CHECK_FACE_SIZE(size x y) [
+	if any [x > 65535 y > 65535][
+		fire [TO_ERROR(script invalid-arg) size]
+	]
+]
+
 get-face-obj: func [
 	handle		[handle!]
 	return:		[red-object!]
@@ -458,6 +464,8 @@ free-handles: func [
 		cfg		[integer!]
 		last	[handle!]
 ][
+	if null? widget [exit]
+
 	values: get-face-values widget
 	type: as red-word! values + FACE_OBJ_TYPE
 	sym: symbol/resolve type/symbol
@@ -803,7 +811,7 @@ remove-all-timers: func [
 
 		while [face < tail][
 			widget_: face-handle? face
-			unless null? widget [remove-all-timers widget_]
+			unless null? widget_ [remove-all-timers widget_]
 			face: face + 1
 		]
 	]
@@ -982,6 +990,7 @@ change-size: func [
 ][
 	GET_PAIR_XY_INT(size sx sy)
 	SET_PAIR_SIZE_FLAG(widget size)
+	CHECK_FACE_SIZE(size sx sy)
 	either type = window [
 		gtk_window_resize widget sx sy
 		gtk_widget_queue_draw widget
@@ -1759,6 +1768,7 @@ OS-make-view: func [
 
 	if TYPE_OF(offset) = TYPE_POINT2D [as-pair as red-point2D! offset]
 	GET_PAIR_XY_INT(size sx sy)
+	CHECK_FACE_SIZE(size sx sy)
 
 	caption: either TYPE_OF(str) = TYPE_STRING [
 		len: -1
@@ -2212,6 +2222,8 @@ OS-destroy-view: func [
 		flags	[integer!]
 ][
 	handle: face-handle? face
+	if null? handle [exit]
+
 	values: object/get-values face
 	flags: get-flags as red-block! values + FACE_OBJ_FLAGS
 
