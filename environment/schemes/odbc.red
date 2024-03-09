@@ -3572,7 +3572,7 @@ odbc: context [
 			cursor-attributes
 		)
 		00148 "index-keywords" any [
-			00000000h #[none]
+			00000000h #(none)
 			00000001h asc
 			00000002h desc
 			00000003h all
@@ -3796,12 +3796,12 @@ odbc: context [
 	;   10022 "max-async-concurrent-statements"
 	;   10023 "async-dbc-functions"
 		10024 "driver-aware-pooling-supported" opt [
-			00000000h #[false]
-			00000001h #[true]
+			00000000h #(false)
+			00000001h #(true)
 		]
 		10025 "async-notification" opt [
-			00000000h #[false]
-			00000001h #[true]
+			00000000h #(false)
+			00000001h #(true)
 		]
 	]
 
@@ -3825,9 +3825,9 @@ odbc: context [
 		]
 		65535 "cursor-scrollable" logic!
 		65534 "cursor-sensitivity" opt [
-			00000000h #[none]
-			00000001h #[false]
-			00000002h #[true]
+			00000000h #(none)
+			00000001h #(false)
+			00000002h #(true)
 		]
 		00006 "cursor-type" opt [
 			00000000h forward
@@ -4237,7 +4237,7 @@ odbc: context [
 								]]
 							]]
 							unless any [
-								empty?  types                                   ;-- all rows in param col are #[none]
+								empty?  types                                   ;-- all rows in param col are #(none)
 								single? types
 							][
 								cause-error 'script 'not-same-type []
