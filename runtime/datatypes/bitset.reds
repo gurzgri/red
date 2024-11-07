@@ -884,6 +884,7 @@ bitset: context [
 		part	 [red-value!]
 		only?	 [logic!]
 		case?	 [logic!]
+		same?	 [logic!]
 		any?	 [logic!]
 		with-arg [red-string!]
 		skip	 [red-integer!]
@@ -894,11 +895,63 @@ bitset: context [
 		return:	 [red-value!]
 		/local
 			bool [red-logic!]
+			pos	 [integer!]
+			s	 [series!]
+			head [byte-ptr!]
+			tail [byte-ptr!]
+			p	 [byte-ptr!]
+			size [integer!]
+			bit  [integer!]
+			byte [integer!]
+			i    [integer!]
 	][
 		#if debug? = yes [if verbose > 0 [print-line "bitset/find"]]
 		
-		bool: as red-logic! pick bits 0 value
-		as red-value! either bool/value [bool][none-value]
+		either OPTION?(skip) [
+			if TYPE_OF(value) <> TYPE_LOGIC [fire [TO_ERROR(script invalid-arg) value]]
+			assert TYPE_OF(skip) = TYPE_INTEGER
+			pos: skip/value
+			if pos < 0 [fire [TO_ERROR(script out-of-range) skip]]
+			s: GET_BUFFER(bits)
+			head: as byte-ptr! s/offset
+			tail: as byte-ptr! s/tail
+			bit: -1
+			p: head + (pos / 8)
+			i: pos % 8
+			either logic/get value [
+				while [all [negative? bit p < tail]] [
+					byte: as-integer p/value
+					unless zero? byte [
+						while [i < 8] [
+							unless zero? (byte and (1 << (7 - i))) [
+								bit: (as-integer p - head) * 8 + i
+								break
+							]
+							i: i + 1
+						]
+					]
+					p: p + 1
+					i: 0
+				]
+			][
+				while [all [negative? bit p < tail]] [
+					byte: as-integer p/value
+					while [i < 8] [
+						if zero? (byte and (1 << (7 - i))) [
+							bit: (as-integer p - head) * 8 + i
+							break
+						]
+						i: i + 1
+					]
+					p: p + 1
+					i: 0
+				]
+			]
+			as red-value! either bit < 0 [none-value][integer/box bit]
+		][
+			bool: as red-logic! pick bits 0 value
+			as red-value! either bool/value [bool][none-value]
+		]
 	]
 	
 	insert: func [
