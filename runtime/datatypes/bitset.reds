@@ -922,7 +922,7 @@ bitset: context [
 				while [all [negative? bit p < tail]] [
 					byte: as-integer p/value
 					unless zero? byte [
-						while [i < 8] [
+						loop 8 [
 							unless zero? (byte and (1 << (7 - i))) [
 								bit: (as-integer p - head) * 8 + i
 								break
@@ -936,7 +936,7 @@ bitset: context [
 			][
 				while [all [negative? bit p < tail]] [
 					byte: as-integer p/value
-					while [i < 8] [
+					loop 8 [
 						if zero? (byte and (1 << (7 - i))) [
 							bit: (as-integer p - head) * 8 + i
 							break
@@ -947,7 +947,7 @@ bitset: context [
 					i: 0
 				]
 			]
-			as red-value! either bit < 0 [none-value][integer/box bit]
+			as red-value! either bit >= 0 [integer/box bit][none-value]
 		][
 			bool: as red-logic! pick bits 0 value
 			as red-value! either bool/value [bool][none-value]
