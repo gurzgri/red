@@ -368,7 +368,6 @@ camera-draw: func [
 		cfg		[integer!]
 		data	[integer!]
 		dlen	[integer!]
-		input	[handle!]
 		pixbuf	[handle!]
 		last	[handle!]
 ][
@@ -384,8 +383,7 @@ camera-draw: func [
 		camera-dev/get-data cfg :data :dlen
 		if dlen <> 0 [
 			;-- now precess data
-			input: g_memory_input_stream_new_from_data as byte-ptr! data dlen null
-			pixbuf: gdk_pixbuf_new_from_stream input null null
+			pixbuf: camera-dev/get-pixbuf cfg
 			gdk_cairo_set_source_pixbuf cr pixbuf 0.0 0.0
 			cairo_paint cr
 			camera-dev/signal cfg
@@ -1095,6 +1093,7 @@ focus-out-event: func [
 	/local
 		face	[red-object!]
 		values	[red-value!]
+		state	[red-value!]
 		type	[red-word!]
 		sym		[integer!]
 		im		[handle!]
@@ -1111,6 +1110,11 @@ focus-out-event: func [
 		;probe ["unfocus: " im]
 		gtk_im_context_focus_out im
 	]
+	state: values + FACE_OBJ_STATE
+	if TYPE_OF(state) = TYPE_NONE [
+		return EVT_DISPATCH
+	]
+
 	make-event widget 0 EVT_UNFOCUS
 	EVT_DISPATCH
 ]

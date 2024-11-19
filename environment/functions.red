@@ -26,11 +26,11 @@ attempt: func [
 	"Tries to evaluate a block and returns result or NONE on error"
 	code [block!]
 	/safer "Capture all possible errors and exceptions"
-	/local all
+	/local all result
 ][
 	set 'all safer										;-- `all:` refuses to compile
-	try/:all [return do code]
-	none
+	try/:all [set/any 'result do code]
+	:result
 ]
 
 comment: func ["Consume but don't evaluate the next value" 'value][]
@@ -313,8 +313,8 @@ context [
 			]
 			fetch [
 				print [
-					p-indent "match:" mold/flat/part rule 50 newline
-					p-indent "input:" mold/flat/part input 50 p-indent
+					p-indent "input:" mold/flat/part input 50 newline
+					p-indent "match:" mold/flat/part rule  50 p-indent
 				]
 			]
 			match [print [p-indent "==>" pick ["matched" "not matched"]  match?]]
@@ -874,6 +874,7 @@ do-file: function ["Internal Use Only" file [file! url!] callback [function! non
 	if file? file [
 		new-path: first split-path clean-path file
 		change-dir new-path
+		append system/state/source-files file
 	]
 	if all [header? list: select header 'currencies][
 		foreach c list [append system/locale/currencies/list c]
@@ -886,7 +887,10 @@ do-file: function ["Internal Use Only" file [file! url!] callback [function! non
 		done?: yes
 		either 'halt-request = :code [print "(halted)"][:code]
 	]
-	if file? file [change-dir saved]
+	if file? file [
+		change-dir saved
+		take/last system/state/source-files
+	]
 	if all [error? :code not done?][do :code]			;-- rethrow the error
 	:code
 ]

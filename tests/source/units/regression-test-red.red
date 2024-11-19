@@ -3645,6 +3645,51 @@ comment {
 		--assert error? set/any 'err try [do [f: func [x][]  f/x false]]  ;-- required DO to avoid the error being caught by compiler
 		--assert err/id = 'no-refine
 
+	--test-- "#5496"
+		file: %/dir/file
+		url: https://example.com/
+		url2: https://example.com
+		home: %/home/
+		home2: %/home
+		
+		--assert home/:file  == %/home/dir/file
+		--assert home2/:file == %/home/dir/file
+		--assert url/:file == https://example.com/dir/file
+		--assert url2/:file == https://example.com/dir/file
+
+		file: %""
+		--assert home/:file	 == %/home/
+		--assert home2/:file == %/home/
+		--assert url/:file   == https://example.com/
+		--assert url2/:file  == https://example.com/
+
+		file: %/dir/file
+		home: %""
+		--assert home/:file == %/dir/file
+
+		url: clear http://
+		--assert url/:file == skip url:/dir/file 4
+		
+	--test-- "#5505"
+		--assert (1, 1, 0) == to-point3D make point2D! 1
+
+	--test-- "#5509"
+		v5509a: make vector! [integer! 32 [3 8 4 6]]
+		v5509b: make vector! [integer! 32 [4 0 1 -9]]
+		--assert v5509a + v5509b == make vector! [integer! 16 [7 8 5 -3]]
+		
+	--test-- "#5535"
+		f5535: does [try/all [return 1] 2]
+		--assert f5535 = 2
+		
+	--test-- "#5552"
+		do [
+			--assert error? try [fun: function [/ref x /local y return: [block!]] [a: 1 print "OK"]]
+			--assert error? try [fun: function [/ref x /local y return: [block!] "locals follow docstring ->"] [a: 1 print "OK"]]
+			--assert error? try [f: func [a [block!] return: [block!] /ref   /local x][]]
+			--assert error? try [f: func [a [block!] return: [block!] /ref y /local x][]]
+		]
+	
 ===end-group===
 
 ~~~end-file~~~

@@ -512,6 +512,7 @@ make-event: func [
 		state  [integer!]
 		key	   [integer!]
 		char   [integer!]
+		bits   [integer!]
 		saved  [handle!]
 		t?	   [logic!]
 ][
@@ -583,7 +584,10 @@ make-event: func [
 			either tab-panel = symbol/resolve word/symbol [
 				gui-evt/flags: flags and FFFFh			;-- already one-based
 			][
-				unless zero? flags [get-text msg -1] 	;-- get text if not done already
+				unless zero? flags [
+					bits: get-flags as red-block! get-facet msg FACE_OBJ_FLAGS
+					if bits and FACET_FLAGS_NO_SYNC = 0 [get-text msg -1] ;-- get text if not done already
+				]
 			]
 		]
 		EVT_LEFT_DOWN
@@ -594,7 +598,7 @@ make-event: func [
 		EVT_MIDDLE_UP
 		EVT_DBL_CLICK
 		EVT_WHEEL [
-			gui-evt/flags: flags
+			gui-evt/flags: flags or check-extra-keys no
 		]
 		EVT_CLICK [
 			gui-evt/flags: check-extra-keys yes
@@ -1702,7 +1706,7 @@ process: func [
 		word   [red-word!]
 		over?  [logic!]
 ][
-	flags: decode-down-flags msg/wParam
+	flags: (decode-down-flags msg/wParam) or check-extra-keys yes
 	hWnd: msg/hWnd
 	switch msg/msg [
 		WM_MOUSEMOVE [

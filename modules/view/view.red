@@ -234,7 +234,8 @@ on-face-deep-change*: function ["Internal use only" owner word target action new
 			system/view/auto-sync?
 			owner/type = 'screen						;-- not postponing windows events
 		][
-			state/2: state/2 or (1 << ((index? in owner word) - 1))
+			unless w: in owner word [exit]
+			state/2: state/2 or (1 << ((index? w) - 1))
 			
 			either word = 'pane [
 				case [
@@ -815,6 +816,7 @@ show: function [
 			clear pending
 		]
 		if face/state/2 <> 0 [system/view/platform/update-view face]
+		obj: face/state/1
 	][
 		new?: yes
 		
@@ -883,7 +885,7 @@ show: function [
 	if all [new? object? face/actors in face/actors 'on-created][
 		do-safe [face/actors/on-created face none]		;@@ only called once
 	]
-	if all [new? face/type = 'window face/visible?][
+	if all [face/type = 'window face/visible?][
 		system/view/platform/show-window obj
 	]
 	show?
@@ -1001,7 +1003,7 @@ make-face: func [
 	if model/init [do bind model/init face]
 	svv/process-reactors reactors
 
-	if offset [face/offset: xy]
+	face/offset: any [xy face/offset 0x0]
 	if size [face/size: wh]
 	face
 ]
@@ -1065,6 +1067,7 @@ get-focusable: function [
 	faces [block!]	"Position to start from in a face's pane"
 	/back			"Search backward"
 ][
+	origin: faces
 	checks: [
 		f/visible?
 		f/enabled?
@@ -1102,6 +1105,7 @@ get-focusable: function [
 	faces: find/same p/parent/pane p
 	p: faces/1
 	either p/type = 'window [
+		if same? p/pane origin [return origin/1]
 		get-focusable/:back either back [tail p/pane][p/pane] ;-- bounce down from window face
 	][
 		if p/parent/type = 'tab-panel [
@@ -1256,7 +1260,7 @@ insert-event-func 'dragging function [face event][
 			if drag-info: face/state/4 [
 				either type = 'over [
 					unless event/away? [
-						new: face/offset + event/offset - drag-info/1
+						new: (any [face/offset 0x0]) + event/offset - drag-info/1
 						if face/offset <> new [
 							if box: drag-info/2 [new: min box/max max box/min new]
 							if face/offset <> new [face/offset: new]
@@ -1409,7 +1413,7 @@ insert-event-func 'tab function [face event][
 		unless back?: to-logic find event/flags 'SHIFT [
 			faces: either all [pane: get-face-pane face not empty? pane][pane][next faces]
 		]
-		set-focus any [
+		new: any [
 			all [
 				opt: face/options
 				any [
@@ -1419,7 +1423,21 @@ insert-event-func 'tab function [face event][
 			]
 			apply :get-focusable [faces /back back?]
 		]
+		unless same? new face [set-focus new]
 		return 'stop
 	]
 	event
+]
+
+#if config/GUI-engine = 'terminal [
+	;-- ESC key handler
+	insert-event-func 'esc function [face event][
+		if all [
+			event/type = 'key
+			event/key = #"^["
+		][
+			unview/all
+			'stop
+		]
+	]
 ]
