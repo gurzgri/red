@@ -79,8 +79,10 @@ map: context [
 				blank: space
 			][
 				if mold? [
-					string/append-char GET_BUFFER(buffer) as-integer lf
-					part: part - 1
+					either only? [indent?: no][
+						string/append-char GET_BUFFER(buffer) as-integer lf
+						part: part - 1
+					]
 				]
 				blank: lf
 			]
@@ -140,7 +142,8 @@ map: context [
 
 		src: as red-block! spec
 		size: block/rs-length? src
-
+		if size % 2 <> 0 [fire [TO_ERROR(script invalid-arg) spec]]
+		
 		s: GET_BUFFER(map)
 		size: as-integer s/tail + size - s/offset
 		if size > s/size [expand-series s size]
@@ -360,12 +363,17 @@ map: context [
 
 		if cycles/detect? as red-value! map buffer :part yes [return part]
 		
-		string/concatenate-literal buffer "#["
-		prev: part - 2
-		part: serialize map buffer no all? flat? arg prev yes indent + 1 yes
-		if all [part <> prev indent > 0][part: object/do-indent buffer indent part]
-		string/append-char GET_BUFFER(buffer) as-integer #"]"
-		part - 1
+		unless only? [
+			string/concatenate-literal buffer "#["
+			prev: part - 2
+		]
+		part: serialize map buffer only? all? flat? arg prev yes indent + 1 yes
+		
+		either only? [part][
+			if all [part <> prev indent > 0][part: object/do-indent buffer indent part]
+			string/append-char GET_BUFFER(buffer) as-integer #"]"
+			part - 1
+		]
 	]
 
 	compare-each: func [
@@ -743,8 +751,6 @@ map: context [
 		deep?		[logic!]
 		types		[red-value!]
 		return:		[red-hash!]
-		/local
-			saved	[integer!]
 	][
 		#if debug? = yes [if verbose > 0 [print-line "map/copy"]]
 

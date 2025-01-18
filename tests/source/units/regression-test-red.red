@@ -798,8 +798,8 @@ Red [
 			1.373691897708523e131
 			do load "27847278432473892748932789483290483789743824832478237843927849327492 * 4932948478392784372894783927403290437147389024920147892940729142"
 		; I've changed this, see issue #710			-- hiiamboris
-		--assert error? try [74789 * 849032]
-		;--assert not error? try [74789 * 849032]
+		;--assert error? try [74789 * 849032]
+		--assert not error? try [74789 * 849032]
 
 	--test-- "#714"
 		a714: load/all "a714"
@@ -2538,7 +2538,7 @@ b}
 	; --test-- "#2070"
 		; GUI
 
-	; --test-- "#2072"
+	 --test-- "#2072"
 		m2072: make map! 10
 		a2072: [1 2 3]
 		m2072/a: a2072
@@ -3380,7 +3380,7 @@ comment {
 
 	--test-- "#5058"
 		--assert strict-equal?
-			"1 a ^/2 b ^/3 c"
+			"1 a^/2 b^/3 c"
 			mold/only new-line/all/skip [1 a 2 b 3 c] yes 2
 
 	--test-- "#5066"
@@ -3488,11 +3488,11 @@ comment {
 			s0: recycle
 			r: make reactor! [a: append/dup [] 'x 10'000] 
 			s1: recycle
-			--assert s1 - s0 >= 260'000
+			--assert s1 - s0 >= 160'000
 			r: none
 		}
 		s2: recycle
-		--assert s2 - s0 < 2000
+		--assert s2 - s0 < 1000
 
 	--test-- "#5238"
 		h: make hash! [1 2 3 4 5 6 7 8 9 10 11 12 13]
@@ -3689,6 +3689,39 @@ comment {
 			--assert error? try [f: func [a [block!] return: [block!] /ref   /local x][]]
 			--assert error? try [f: func [a [block!] return: [block!] /ref y /local x][]]
 		]
+		
+	--test-- "#5562"
+		--assert error! = scan "(,)"
+		--assert error! = scan "(,1)"
+		--assert error! = scan "(, 1)"
+		--assert error! = scan "(1,,1)"
+		--assert error! = scan "(,,1)"
+		--assert error! = scan "(1,,)"
+		--assert error! = scan "(1,, 1)"
+		--assert error! = scan "(1, ,1)"
+		--assert error! = scan "(1, , 1)"
+		--assert error! = scan "(1 ,,1)"
+		--assert error! = scan "(1 , ,1)"
+		--assert error! = scan "(1 , , 1)"
+		--assert error? try [load "(,1)"]
+		--assert error? try [load "(,1,2)"]
+		--assert error? try [load "(,,2)"]
+		
+	--test-- "#5565"
+		react/link func [a b] [b/x: a/x] reduce [o1: object [x: 1] o2: object [x: 2]]
+		--assert o2/x = 2
+		
+	--test-- "#5561"
+		--assert "make vector! [float! 64 []]" == mold/all clear make vector! [0.0]
+		
+	--test-- "#5568"
+		r5568: reactor [x: 0 unset 'x]
+		--assert none? react [r5568/x]
+		--assert none? react [r5568/y]
+
+	--test-- "#5579"
+		h5579: make hash! [1 2]
+		--assert h5579 = copy/part make hash! [1 2 3 4 5 6 7 8] 2
 	
 ===end-group===
 

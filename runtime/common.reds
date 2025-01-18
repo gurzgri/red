@@ -605,6 +605,7 @@ words: context [
 	values:			-1
 	owner:			-1
 	owned:			-1
+	events?:		-1
 	
 	windows:		-1
 	syllable:		-1
@@ -930,6 +931,7 @@ words: context [
 		values:			symbol/make "values"
 		owner:			symbol/make "owner"
 		owned:			symbol/make "owned"
+		events?:		symbol/make "events?"
 
 		_true:			symbol/make "true"
 		_false:			symbol/make "false"

@@ -87,6 +87,7 @@ write %build/bin/sources.r set-cache [
 		%definitions.reds
 		%deflate.reds
 		%dtoa.reds
+		%externals.reds
 		%hashtable.reds
 		%image-utils.reds
 		%interpreter.reds
@@ -100,6 +101,7 @@ write %build/bin/sources.r set-cache [
 		%random.reds
 		%red.reds
 		%redbin.reds
+		%references.reds
 		%simple-io.reds
 		%sort.reds
 		%stack.reds
@@ -334,6 +336,7 @@ write %build/bin/sources.r set-cache [
 			%common.reds
 			%darwin.reds
 			%debug.reds
+			%heap.reds
 			%freebsd.reds
 			%netbsd.reds
 			%libc.reds
