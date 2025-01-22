@@ -224,7 +224,7 @@ odbc: context [
 			TO_ERROR(internal no-memory)
 		]]
 
-		copy-cell as red-value! handle/box sqlhenv
+		copy-cell as red-value! handle/box sqlhenv 0
 		          venv + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-henv/value = " sqlhenv lf]]
 
 																				#if debug? = yes [print ["^-SQLSetEnvAttr "]]
@@ -530,7 +530,7 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		copy-cell as red-value! handle/box sqlhcon
+		copy-cell as red-value! handle/box sqlhcon 0
 		          vcon + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-hcon/value = " sqlhcon lf]]
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
@@ -796,7 +796,7 @@ odbc: context [
 				SET_RETURN((either zero? int-ptr/value [
 					none-value
 				][
-					handle/box int-ptr/value
+					handle/box int-ptr/value 0
 				]))
 			]
 
@@ -877,7 +877,7 @@ odbc: context [
 			as red-block! vcon + odbc/cmnfld-errors
 		]]
 																				#if debug? = yes [print ["^-hstm/value = " sqlhstm lf]]
-		copy-cell as red-value! handle/box sqlhstm
+		copy-cell as red-value! handle/box sqlhstm 0
 		          vstm + odbc/cmnfld-handle
 																				#if debug? = yes [print ["]" lf]]
 	]
@@ -1300,8 +1300,8 @@ odbc: context [
 																				#if debug? = yes [print ["^-allocate len-buf, " rows * size? integer! " bytes"]]
 			len-buf:    𝐀llocate rows * size? integer!                          #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
 
-			handle/make-in buffers as integer! prm-buf
-			handle/make-in buffers as integer! len-buf
+			handle/make-in buffers as integer! prm-buf 0
+			handle/make-in buffers as integer! len-buf 0
 
 			prm-slot:   prm-buf
 			len-slot:   as int-ptr! len-buf
@@ -2127,7 +2127,7 @@ odbc: context [
 		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
-		status: handle/box as integer! row-buf                                  #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
+		status: handle/box as integer! row-buf 0                                #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
 
 		copy-cell as red-value! status                                          ;-- store pointer in statement
 		          vstm + odbc/stmfld-status                                     ;
@@ -2161,9 +2161,9 @@ odbc: context [
 			len-buf:    as int-ptr! 𝐀llocate len-buflen                         #if debug? = yes [print [" @ " len-buf " " either len-buf <> null ["ok."] ["failed!"] lf]]
 			if len-buf = null [fire [TO_ERROR(internal no-memory)]]             ;-- FIXME: this leaks prev. allocated buffers
 
-			copy-cell as red-value! handle/box as integer! col-buf                            ;-- store pointers in columns
+			copy-cell as red-value! handle/box as integer! col-buf 0                          ;-- store pointers in columns
 			          block/rs-abs-at columns offset + odbc/colfld-colbuf       ;
-			copy-cell as red-value! handle/box as integer! len-buf
+			copy-cell as red-value! handle/box as integer! len-buf 0
 			          block/rs-abs-at columns offset + odbc/colfld-lenbuf
 
 			unless all [zero? limit any [
