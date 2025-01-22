@@ -127,21 +127,21 @@ Red [
 	--test-- "can detect prmsets with unmatched types, but allows late NONE"
 		--assert not error? try [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ? AND caption = ?" [1 "Test"] [1 #[none]]]
+			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ? AND caption = ?" [1 "Test"] [1 #(none)]]
 			close conn
 		]
 
 	--test-- "can detect prmsets with unmatched types, but allows early NONE"
 		--assert not error? try [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ? AND caption = ?" [1 #[none]] [1 "Test"]]
+			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ? AND caption = ?" [1 #(none)] [1 "Test"]]
 			close conn
 		]
 
 	--test-- "can handle prmsets with all NONE column"
 		--assert not error? try [
 			test: open conn: open rejoin [odbc:// get-env "TESTDSN"]
-			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ?" [#[none]] [#[none]]]
+			insert test ["SELECT caption FROM depot2019.schools WHERE school_id = ?" [#(none)] [#(none)]]
 			close conn
 		]
 
