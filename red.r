@@ -384,7 +384,7 @@ redc: context [
 		]
 	]
 	
-	build-libRedRT: func [opts [object!] /local script result file path][
+	build-libRedRT: func [opts [object!] /local script result file path saved][
 		print "Compiling libRedRT..."
 		file: libRedRT/lib-file
 		path: get-output-path opts
@@ -416,9 +416,12 @@ redc: context [
 			"...compilation time :" format-time result/2 "ms^/"
 			"^/Compiling to native code..."
 		]
+		saved: opts/verbosity
+		opts/verbosity: max 0 opts/verbosity - 3
 		unless encap? [change-dir %system/]
 		result: system-dialect/compile/options/loaded file opts result
 		unless encap? [change-dir %../]
+		opts/verbosity: saved
 		show-stats result
 	]
 	
@@ -545,7 +548,7 @@ redc: context [
 	parse-options: func [
 		args [string! none!]
 		/local src opts output target verbose filename config config-name base-path type
-		mode target? cmd spec cmds ws ssp modes
+		mode target? cmd spec cmds ws ssp modes engine
 	][
 		unless args [
 			if encap? [fetch-cmdline]					;-- Fetch real command-line in UTF8 format
@@ -593,6 +596,7 @@ redc: context [
 				| "--no-view"					(opts/GUI-engine: none)
 				| "--no-compress"				(opts/redbin-compress?: no)
 				| "--show-func-map"				(opts/show-func-map?: yes)
+				| "--view" set engine skip		(append any [spec spec: copy []] compose [GUI-engine: (to-lit-word load engine)])
 				| "--" break							;-- stop options processing
 			]
 			set filename skip (unless empty? filename [src: load-filename filename])
