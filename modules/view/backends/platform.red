@@ -358,6 +358,7 @@ system/view/platform: context [
 			_time:			word/load "time"
 			_drawing:		word/load "drawing"
 			_scroll:		word/load "scroll"
+			_ratio:			word/load "ratio"
 
 			_vertical:		word/load "vertical"
 			_horizontal:	word/load "horizontal"
@@ -716,6 +717,11 @@ system/view/platform: context [
 	
 	destroy-view: routine [face [object!] empty? [logic!]][
 		gui/OS-destroy-view face empty?
+		SET_RETURN(none-value)
+	]
+	
+	detach-image: routine [img [image!]][
+		ownership/unbind as red-value! img
 		SET_RETURN(none-value)
 	]
 	

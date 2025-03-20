@@ -1264,6 +1264,10 @@ get-position-value: func [
 	as-integer f
 ]
 
+get-ratio: func [face [red-object!] return: [red-float!]][
+	as red-float! object/rs-select face as red-value! _ratio
+]
+
 set-scroller-metrics: func [
 	msg	[tagMSG]
 	si	[tagSCROLLINFO]
@@ -1785,7 +1789,7 @@ OS-make-view: func [
 
 	;-- extra initialization
 	case [
-		sym = camera	[init-camera handle data selected false]
+		sym = camera	[init-camera handle data selected get-ratio face]
 		sym = text-list [init-text-list handle data selected]
 		sym = base		[init-base-face handle parent values alpha? ex-flags]
 		sym = panel		[if alpha? [init-base-face handle parent values alpha? ex-flags]]
@@ -1829,8 +1833,8 @@ OS-make-view: func [
 			f32: either vertical? [sy][sx]
 			off-x: get-position-value as red-float! data f32
 			value: as-integer f32
-			if vertical? [off-x: (as-integer sy) - off-x]
 			either sym = slider [
+				if vertical? [off-x: (as-integer sy) - off-x]
 				SendMessage handle TBM_SETRANGE 1 value << 16
 				SendMessage handle TBM_SETPOS 1 off-x
 			][
@@ -1993,6 +1997,7 @@ change-size: func [
 		type = area		 [update-scrollbars hWnd null]
 		type = tab-panel [update-tab-contents hWnd FACE_OBJ_SIZE]
 		type = text		 [InvalidateRect hWnd null 1]	;-- issue #4388
+		type = camera	 [update-camera hWnd sz-x + cx sz-y + cy]
 		true	  		 [0]
 	]
 ]
@@ -2310,7 +2315,7 @@ change-image: func [
 		type = camera [
 			img: as red-image! values + FACE_OBJ_IMAGE
 			if TYPE_OF(img) = TYPE_NONE [
-				camera-get-image img
+				camera-wait-image img
 			]
 		]
 		true [0]
@@ -2341,7 +2346,7 @@ change-selection: func [
 		]
 		sym = camera [
 			either TYPE_OF(int) = TYPE_NONE [
-				destroy-camera hWnd
+				stop-camera hWnd 
 			][
 				if select-camera hWnd int/value - 1 [
 					toggle-preview hWnd true
@@ -2399,9 +2404,10 @@ change-data: func [
 			f: as red-float! data
 			size: as red-pair! values + FACE_OBJ_SIZE
 			flt: f/value
-			range: either size/y > size/x [flt: 1.0 - flt size/y][size/x]
+			range: either size/y > size/x [size/y][size/x]
 			flt: flt * as-float range
 			either type = slider [
+				if size/y > size/x [flt: 1.0 - flt]
 				SendMessage hWnd TBM_SETPOS 1 as-integer flt
 			][
 				SendMessage hWnd PBM_SETPOS as-integer flt 0
@@ -2888,7 +2894,7 @@ OS-to-image: func [
 		hWnd: face-handle? face
 		either null? hWnd [ret: as red-image! none-value][
 			ret: as red-image! (object/get-values face) + FACE_OBJ_IMAGE
-			camera-get-image ret
+			camera-wait-image ret
 		]
 		return ret
 	]

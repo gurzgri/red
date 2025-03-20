@@ -514,6 +514,8 @@ face!: object [				;-- keep in sync with facet! enum
 				value: pick data selected
 				set-quiet 'text copy value
 			]
+			
+			if all [not same? :old :new image? :old][system/view/platform/detach-image old]
 
 			system/reactivity/check/only self any [saved word]
 
@@ -1265,7 +1267,7 @@ insert-event-func 'dragging function [face event][
 							if box: drag-info/2 [new: min box/max max box/min new]
 							if face/offset <> new [face/offset: new]
 							set/any 'result do-actor face event 'drag ;-- avoid calling on-over actor
-							unless system/view/auto-sync? [show face]
+							show face/parent
 							return :result
 						]
 					]
@@ -1361,6 +1363,8 @@ insert-event-func 'reactors [
 		
 		if facet [system/reactivity/check/only face facet]
 	]
+	if all [event/window event/type = 'focus][system/reactivity/check/only event/window 'selected]
+	
 	if event/face/type = 'window [
 		switch event/type [
 			move moving 	[system/reactivity/check/only event/face 'offset]
