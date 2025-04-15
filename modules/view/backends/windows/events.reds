@@ -1425,6 +1425,7 @@ WndProc: func [
 		WM_ACTIVATE [
 			if type = window [
 				either WIN32_LOWORD(wParam) <> 0 [
+					update-dpi-factor hwnd
 					if current-msg <> null [
 						current-msg/hWnd: hWnd
 						make-event current-msg 0 EVT_FOCUS
@@ -1652,9 +1653,9 @@ WndProc: func [
 		WM_DPICHANGED [
 			log-pixels-x: WIN32_LOWORD(wParam)			;-- new DPI
 			log-pixels-y: log-pixels-x
-			dpi-x: as float32! log-pixels-x
-			dpi-y: dpi-x
-			dpi-factor: dpi-x / as float32! 96.0
+			current-dpi: as float32! log-pixels-x
+			dpi-factor: current-dpi / as float32! 96.0
+			
 			rc: as RECT_STRUCT lParam
 			SetWindowPos 
 				hWnd
@@ -1662,19 +1663,24 @@ WndProc: func [
 				rc/left rc/top
 				rc/right - rc/left rc/bottom - rc/top
 				SWP_NOZORDER or SWP_NOACTIVATE
-			values: values + FACE_OBJ_PANE
+			
 			if type = window [
+				reattach-window-face
+					MonitorFromWindow hWnd MONITOR_DEFAULTTONEAREST
+					get-face-obj hWnd
+					as red-object! values + FACE_OBJ_PARENT ;-- move window face to new parent screen
+				
 				set-defaults hWnd
-				update-window as red-block! values null
+				update-window as red-block! values + FACE_OBJ_PANE null
 			]
-			if hidden-hwnd <> null [
-				;@@ FIXME this may cause issue if the face inside hidden-hwnd has been GCed
-				values: (get-face-values hidden-hwnd) + FACE_OBJ_EXT3
-				values/header: TYPE_NONE
-				target: as render-target! GetWindowLong hidden-hwnd wc-offset - 36
-				if target <> null [d2d-release-target target]
-				SetWindowLong hidden-hwnd wc-offset - 36 0
-			]
+			;if hidden-hwnd <> null [
+			;	;@@ FIXME this may cause issue if the face inside hidden-hwnd has been GCed
+			;	values: (get-face-values hidden-hwnd) + FACE_OBJ_EXT3
+			;	values/header: TYPE_NONE
+			;	target: as render-target! GetWindowLong hidden-hwnd wc-offset - 36
+			;	if target <> null [d2d-release-target target]
+			;	SetWindowLong hidden-hwnd wc-offset - 36 0
+			;]
 			RedrawWindow hWnd null null 4 or 1			;-- RDW_ERASE | RDW_INVALIDATE
 		]
 		WM_THEMECHANGED [

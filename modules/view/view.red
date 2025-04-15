@@ -45,6 +45,14 @@ face?: function [
 	]
 ]
 
+get-current-screen: function [
+	"Returns the screen face of the Display where the mouse cursor is currently located"
+	return: [object!]	"Screen face"
+][
+	handle: system/view/platform/get-current-screen
+	foreach screen system/view/screens [if screen/state/1 = handle [return screen]]
+]
+
 size-text: function [
 	"Returns the area size of the text in a face"
 	face	 [object!]		"Face containing the text to size"
@@ -74,7 +82,7 @@ caret-to-offset: function [
 offset-to-caret: function [
 	"Given a coordinate, returns the corresponding caret position"
 	face	[object!]
-	pt		[pair! point2D!]
+	pt		[planar!]
 	return:	[integer!]
 ][
 	system/view/platform/text-box-metrics face pt 1
@@ -83,7 +91,7 @@ offset-to-caret: function [
 offset-to-char: function [
 	"Given a coordinate, returns the corresponding character position"
 	face	[object!]
-	pt		[pair! point2D!]
+	pt		[planar!]
 	return:	[integer!]
 ][
 	system/view/platform/text-box-metrics face pt 5
@@ -257,14 +265,24 @@ on-face-deep-change*: function ["Internal use only" owner word target action new
 									stop-reactor/deep face
 									modal?: find-flag? face/flags 'modal
 									system/view/platform/destroy-view face face/state/4
-
-									if all [modal? not empty? head target][
-										pane: target
-										until [
-											pane: back pane
-											pane/1/enabled?: yes
-											unless system/view/auto-sync? [show pane/1]
-											any [head? pane find-flag? pane/1/flags 'modal]
+									if modal? [
+										either 1 = length? head target [ ;-- if only target window is present in the pane
+											foreach screen system/view/screens [
+												unless empty? head screen/pane [
+													face: last head screen/pane	;-- select the last opened window
+													face/enabled?: yes
+													unless system/view/auto-sync? [show face]
+													break
+												]
+											]
+										][
+											pane: target
+											until [
+												pane: back pane
+												pane/1/enabled?: yes
+												unless system/view/auto-sync? [show pane/1]
+												any [head? pane find-flag? pane/1/flags 'modal]
+											]
 										]
 									]
 								]
@@ -730,7 +748,9 @@ system/view: context [
 		
 		if all [event/type = 'close :result <> 'continue][
 			result: pick [stop done] face/state/4		;-- face/state will be none after remove call
-			remove find head system/view/screens/1/pane face
+			foreach screen system/view/screens [
+				if pos: find/same head screen/pane face [remove pos break]
+			]
 		]
 		:result
 	]
@@ -745,17 +765,20 @@ system/view: context [
 #include %draw.red
 #include %VID.red
 
-do-events: function [
+do-events: func [
 	"Launch the event loop, blocks until all windows are closed"
 	/no-wait			   "Process an event in the queue and returns at once"
 	return: [logic! word!] "Returned value from last event"
-	/local result
+	/local result screen win
 ][
-	if all [win: last head system/view/screens/1/pane win/state][
-		unless win/state/4 [win/state/4: not no-wait]		;-- mark the window from which the event loop starts
-		set/any 'result system/view/platform/do-event-loop no-wait
-		:result
+	foreach screen system/view/screens [
+		if all [win: last head screen/pane win/state][
+			unless win/state/4 [win/state/4: not no-wait]	;-- mark the window from which the event loop starts
+			set/any 'result system/view/platform/do-event-loop no-wait
+			break
+		]
 	]
+	:result
 ]
 
 stop-events: function [
@@ -818,7 +841,7 @@ show: function [
 			clear pending
 		]
 		if face/state/2 <> 0 [system/view/platform/update-view face]
-		obj: face/state/1
+		handle: face/state/1
 	][
 		new?: yes
 		
@@ -842,10 +865,10 @@ show: function [
 				]
 			]
 
-			obj: system/view/platform/make-view face p
+			handle: system/view/platform/make-view face p
 			if with [face/parent: parent]
 
-			face/state: reduce [obj 0 none false]
+			face/state: reduce [handle 0 none false]
 
 			foreach field [para font][
 				if all [field: face/:field p: in field 'parent][
@@ -863,17 +886,18 @@ show: function [
 					tab-panel [link-tabs-to-parent face]
 				]
 				window	  [
-					pane: system/view/screens/1/pane
+					face/parent: get-current-screen
 					if find-flag? face/flags 'modal [
+						pane: face/parent/pane
 						foreach f head pane [
 							f/enabled?: no
 							unless system/view/auto-sync? [show f]
 						]
 					]
-					append pane face
+					append face/parent/pane face
 				]
 			]
-		][face/state: reduce [obj 0 none false]]
+		][face/state: reduce [handle 0 none false]]
 	]
 
 	if face/pane [
@@ -887,9 +911,7 @@ show: function [
 	if all [new? object? face/actors in face/actors 'on-created][
 		do-safe [face/actors/on-created face none]		;@@ only called once
 	]
-	if all [face/type = 'window face/visible?][
-		system/view/platform/show-window obj
-	]
+	if all [face/type = 'window face/visible?][system/view/platform/show-window handle]
 	show?
 ]
 
@@ -902,7 +924,7 @@ unview: function [
 	if system/view/debug? [print ["unview: all:" :all "only:" only]]
 	
 	all?: :all											;-- compiler does not support redefining ALL
-	svs: system/view/screens/1
+	svs: either system/words/all [only face/type = 'window][face/parent][get-current-screen]
 	if empty? pane: svs/pane [exit]
 	
 	case [
@@ -935,7 +957,7 @@ view: function [
 	if flags [spec/flags: either spec/flags [unique union to-block spec/flags to-block flgs][flgs]]
 	
 	unless spec/text   [spec/text: "Red: untitled"]
-	unless spec/offset [center-face spec]
+	unless spec/offset [center-face/with spec get-current-screen]
 	unless show spec [exit]
 
 	set/any 'result either no-wait [
@@ -957,13 +979,7 @@ center-face: function [
 		parent [object!] "Reference face"
 	return: [object!]	 "Returns the centered face"
 ][
-	unless parent [
-		parent: either face/type = 'window [
-			system/view/screens/1						;@@ to be improved for multi-display support
-		][
-			face/parent
-		]
-	]
+	unless parent [parent: face/parent]
 	either parent [
 		pos: parent/size - face/size / 2
 		case [
@@ -1251,8 +1267,8 @@ insert-event-func 'dragging function [face event][
 			unless all [
 				object? :result
 				[min max] = words-of result
-				find [pair! point2D!] type?/word result/min
-				find [pair! point2D!] type?/word result/max
+				planar? result/min
+				planar? result/max
 			][
 				result: none
 			]

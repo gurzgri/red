@@ -457,8 +457,7 @@ natives: context [
 		#typecheck has
 		blk: block/clone as red-block! stack/arguments no no
 		blk: as red-block! copy-cell as red-value! blk stack/arguments
-		block/insert-value blk as red-value! refinements/local
-		blk/head: blk/head - 1
+		block/insert-value blk as red-value! refinements/local no no
 		func* check?
 	]
 		
@@ -1075,7 +1074,7 @@ natives: context [
 					either append? [
 						copy-cell as red-value! blk ALLOC_TAIL(new)
 					][
-						block/insert-value new as red-value! blk
+						block/insert-value new as red-value! blk yes no
 					]
 				]
 				TYPE_PAREN [
@@ -1100,7 +1099,7 @@ natives: context [
 								either append? [
 									copy-cell result ALLOC_TAIL(new)
 								][
-									block/insert-value new result
+									block/insert-value new result yes no
 								]
 							][
 								either append? [
@@ -1116,7 +1115,7 @@ natives: context [
 					either append? [
 						copy-cell value ALLOC_TAIL(new)
 					][
-						block/insert-value new value
+						block/insert-value new value yes no
 					]
 				]
 			]
@@ -3672,13 +3671,14 @@ natives: context [
 	]
 	
 	forall-next?: func [									;@@ inline?
+		inc?	[logic!]
 		return: [logic!]
 		/local
 			series [red-series!]
 			img	   [red-image!]
 	][
 		series: as red-series! _context/get as red-word! stack/arguments - 1
-		series/head: series/head + 1
+		if inc? [series/head: series/head + 1]
 		either TYPE_OF(series) = TYPE_IMAGE [
 			img: as red-image! series
 			IMAGE_WIDTH(img/size) * IMAGE_HEIGHT(img/size) <= img/head

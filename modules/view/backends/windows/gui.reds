@@ -88,7 +88,7 @@ ime-font:		as tagLOGFONT allocate 92
 base-down-hwnd: as handle! 0
 
 dpi-factor:		as float32! 1.0
-current-dpi:	96
+current-dpi:	as float32! 96.0
 log-pixels-x:	0
 log-pixels-y:	0
 screen-size-x:	0
@@ -100,6 +100,17 @@ kb-state: 		allocate 256							;-- holds keyboard state for keys conversion
 
 dark-mode?:		no
 pShouldAppsUseDarkMode: as int-ptr! 0
+
+monitor!: alias struct! [
+	handle	 [handle!]
+	DPI		 [float32!]
+	pixels-x [integer!]
+]
+
+monitors-nb: 10
+monitors: as monitor! 0
+monitor-tail: as monitor! 0
+
 
 dpi-scale: func [
 	num		[float32!]
@@ -751,34 +762,30 @@ set-defaults: func [
 	hWnd		[handle!]
 	/local
 		hFont	[handle!]
-		hTheme	[handle!]
 		font	[tagLOGFONT]
 		ft		[tagLOGFONT value]
 		name	[c-string!]
 		res		[integer!]
 		len		[integer!]
 		metrics [tagNONCLIENTMETRICS value]
-		theme?	[logic!]
 ][
 	if default-font-name <> null [free as byte-ptr! default-font-name default-font-name: null]
 	if hWnd <> null [
 		hFont: as handle! GetWindowLong hWnd wc-offset - 32
 		if hFont <> null [DeleteObject hFont]
 	]
-
-	theme?: IsThemeActive
 	res: -1
-	either theme? [
-		hTheme: OpenThemeData null #u16 "Window"
-		if hTheme <> null [
-			res: GetThemeSysFont hTheme 805 :ft		;-- TMT_MSGBOXFONT
-			font: :ft
+	metrics/cbSize: size? tagNONCLIENTMETRICS
+	#case [
+		any [not legacy not find legacy 'no-multi-monitor][	;-- DPI-aware (Win10+)
+			res: as-integer SystemParametersInfoForDPI 29h size? tagNONCLIENTMETRICS as int-ptr! :metrics 0 log-pixels-y
 		]
-	][
-		metrics/cbSize: size? tagNONCLIENTMETRICS
-		res: as-integer SystemParametersInfo 29h size? tagNONCLIENTMETRICS as int-ptr! :metrics 0
-		font: as tagLOGFONT :metrics/lfMessageFont
+		true [												;-- fixed DPI across all monitors (Win8-)
+			res: as-integer SystemParametersInfo 29h size? tagNONCLIENTMETRICS as int-ptr! :metrics 0
+		]
 	]
+	font: as tagLOGFONT :metrics/lfMessageFont
+	
 	if res >= 0 [
 		name: as-c-string :font/lfFaceName
 		len: utf16-length? name
@@ -795,8 +802,6 @@ set-defaults: func [
 			0 - (font/lfHeight * 72 / log-pixels-y)
 
 		default-font: CreateFontIndirect font
-
-		if theme? [CloseThemeData hTheme]
 	]
 
 	if null? default-font [default-font: GetStockObject DEFAULT_GUI_FONT]
@@ -822,32 +827,42 @@ enable-visual-styles: func [
 	InitCommonControlsEx ctrls
 ]
 
-get-dpi: func [
+update-dpi-factor: func [
+	hWnd	[handle!]
 	/local
-		dll		[handle!]
-		fun1	[GetDpiForMonitor!]
-		monitor [handle!]
-		pt		[tagPOINT value]
-		dpi?	[logic!]
+		win	screen [red-object!]
+		fl [red-float!]
 ][
-	dpi?: no
-	if win8+? [
-		dll: LoadLibraryA "shcore.dll"
-		if dll <> null [
-			pt/x: 1 pt/y: 1
-			monitor: MonitorFromPoint pt 2
-			fun1: as GetDpiForMonitor! GetProcAddress dll "GetDpiForMonitor"
-			fun1 monitor 0 :log-pixels-x :log-pixels-y
-			FreeLibrary dll
-			dpi?: yes
+	win: as red-object! get-face-obj hWnd
+	assert TYPE_OF(win) = TYPE_OBJECT
+	screen: as red-object! (object/get-values win) + FACE_OBJ_PARENT		;-- screen: win/parent
+	if TYPE_OF(screen) = TYPE_OBJECT [
+		fl: as red-float! (object/get-values screen) + FACE_OBJ_DATA		;-- fl: screen/data
+		if TYPE_OF(fl) = TYPE_FLOAT [
+			dpi-factor: as float32! fl/value
+			current-dpi: dpi-factor * as float32! 96.0
 		]
 	]
-	unless dpi? [
-		log-pixels-x: GetDeviceCaps hScreen 88			;-- LOGPIXELSX
-		log-pixels-y: GetDeviceCaps hScreen 90			;-- LOGPIXELSY
+]
+
+get-dpi: func [
+	/local
+		monitor [handle!]
+		pt		[tagPOINT value]
+][
+	#case [
+		any [not legacy not find legacy 'no-multi-monitor][
+			GetCursorPos pt
+			monitor: MonitorFromPoint pt 2
+			GetDpiForMonitor monitor 0 :log-pixels-x :log-pixels-y
+		]
+		true [
+			log-pixels-x: GetDeviceCaps hScreen 88		;-- LOGPIXELSX
+			log-pixels-y: GetDeviceCaps hScreen 90		;-- LOGPIXELSY
+		]
 	]
-	current-dpi: log-pixels-x
-	dpi-factor: (as float32! log-pixels-x) / as float32! 96.0
+	current-dpi: as float32! log-pixels-x
+	dpi-factor: current-dpi / as float32! 96.0
 ]
 
 get-metrics: func [
@@ -944,6 +959,9 @@ init: func [
 	int/header: TYPE_INTEGER
 	int/value:  as-integer version-info/wProductType
 
+	monitors: as monitor! allocate monitors-nb * size? monitor!
+	monitor-tail: monitors
+	
 	get-metrics
 
 	if win10+? [
@@ -1013,29 +1031,6 @@ cleanup: does [
 	DX-cleanup
 ]
 
-find-last-window: func [
-	return: [handle!]
-	/local
-		obj  [red-object!]
-		pane [red-block!]
-][
-	pane: as red-block! #get system/view/screens		;-- screens list
-	if null? pane [return null]
-	
-	obj: as red-object! block/rs-head pane				;-- 1st screen
-	if null? obj [return null]	
-	
-	pane: as red-block! (object/get-values obj) + FACE_OBJ_PANE ;-- windows list
-	
-	either all [
-		TYPE_OF(pane) = TYPE_BLOCK
-		0 < (pane/head + block/rs-length? pane)
-	][
-		face-handle? as red-object! (block/rs-tail pane) - 1
-	][
-		null
-	]
-]
 
 window-border-info?: func [
 	handle	[handle!]
@@ -1453,6 +1448,72 @@ parse-common-opts: func [
 	]
 ]
 
+OS-get-current-screen: func [
+	return: [red-handle!]
+	/local
+		hMonitor [handle!]
+		pt		 [tagPOINT value]
+][
+	GetCursorPos pt
+	hMonitor: MonitorFromPoint pt 2
+	handle/make-at stack/arguments as-integer hMonitor handle/CLASS_MONITOR
+]
+
+monitor-enum-proc: func [
+	[stdcall]
+	hMonitor[integer!]
+	hDC		[handle!]
+	lpRECT	[int-ptr!]									;-- RECT_STRUCT
+	spec	[red-block!]
+	return: [logic!]
+	/local
+		blk	  [red-block!]
+		s	  [series!]
+		DPI	  [float32!]
+		rec	  [RECT_STRUCT]
+		pt	  [tagPOINT value]
+		log-x [integer!]
+		log-y [integer!]
+][
+	log-x: log-y: 0
+	#case [
+		any [not legacy not find legacy 'no-multi-monitor][
+			GetDpiForMonitor as handle! hMonitor 0 :log-x :log-y
+		]
+		true [
+			log-x: GetDeviceCaps hScreen 88				;-- LOGPIXELSX
+			log-y: GetDeviceCaps hScreen 90				;-- LOGPIXELSY
+		]
+	]
+	DPI: (as float32! log-x) / as float32! 96.0
+	
+	blk: block/make-at as red-block! ALLOC_TAIL(spec) 4
+	s: GET_BUFFER(blk)
+	rec: as RECT_STRUCT lpRECT
+	
+	pair/make-at   alloc-tail s rec/left rec/top
+	pair/make-at   alloc-tail s rec/right - rec/left rec/bottom - rec/top
+	float/make-at  alloc-tail s as-float DPI
+	handle/make-at alloc-tail s hMonitor handle/CLASS_MONITOR
+	
+	monitor-tail/handle:   as handle! hMonitor
+	monitor-tail/DPI:	   DPI
+	monitor-tail/pixels-x: log-x
+	monitor-tail: monitor-tail + 1
+	assert (as-integer monitor-tail - monitors) >> 2 < monitors-nb
+	
+	true												;-- continue enumeration
+]
+
+OS-fetch-all-screens: func [
+	return: [red-block!]
+	/local blk [red-block!]
+][
+	blk: block/push-only* 2
+	EnumDisplayMonitors null null :monitor-enum-proc blk
+	blk
+]
+
 OS-redraw: func [hWnd [integer!]][
 	InvalidateRect as handle! hWnd null 0
 	UpdateWindow as handle! hWnd
@@ -1712,6 +1773,8 @@ OS-make-view: func [
 				n: either alpha? [WS_EX_LAYERED][set-layered-option options win8+?]
 				ws-flags: ws-flags or n
 			]
+			get-dpi
+
 			if sx < as float32! 0.0 [sx: as float32! 200.0]
 			if sy < as float32! 0.0 [sy: as float32! 200.0]
 			rc/left: 0
