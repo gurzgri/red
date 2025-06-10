@@ -513,6 +513,7 @@ make-event: func [
 		bits   [integer!]
 		saved  [handle!]
 		t?	   [logic!]
+		cnt	   [integer!]
 ][
 	gui-evt/type:  evt
 	gui-evt/msg:   as byte-ptr! msg
@@ -608,7 +609,8 @@ make-event: func [
 	saved: msg/hWnd
 	stack/mark-try-all words/_anon
 	res: as red-word! stack/arguments
-	
+
+	cnt: loop-cnt
 	t?: interpreter/tracing?
 	interpreter/tracing?: no
 	catch CATCH_ALL_EXCEPTIONS [
@@ -616,6 +618,7 @@ make-event: func [
 		stack/unwind
 	]
 	interpreter/tracing?: t?
+	if loop-cnt < cnt [PostQuitMessage 0]
 	
 	stack/adjust-post-try
 	if system/thrown <> 0 [system/thrown: 0]
@@ -1267,6 +1270,16 @@ WndProc: func [
 		y yy   [integer!]
 		ShouldAppsUseDarkMode [ShouldAppsUseDarkMode!]
 ][
+	if msg = WM_CLOSE [
+		either -1 = GetWindowLong hWnd wc-offset - 4 [
+			clean-up
+		][
+			SetFocus hWnd									;-- force focus on the closing window,
+			current-msg/hWnd: hWnd							;-- prevents late unfocus event generation.
+			res: make-event current-msg 0 EVT_CLOSE
+			return 0
+		]
+	]
 	unless face-set? hWnd [return DefWindowProc hWnd msg wParam lParam]
 
 	values: get-face-values hWnd
@@ -1634,21 +1647,6 @@ WndProc: func [
 		WM_GETMINMAXINFO [								;@@ send before WM_NCCREATE
 			if all [type = window set-window-info hWnd lParam][return 0]
 		]
-		WM_CLOSE [
-			either -1 = GetWindowLong hWnd wc-offset - 4 [
-				clean-up
-			][
-				if type = window [
-					SetFocus hWnd									;-- force focus on the closing window,
-					current-msg/hWnd: hWnd							;-- prevents late unfocus event generation.
-					res: make-event current-msg 0 EVT_CLOSE
-					if res  = EVT_DISPATCH [return 0]				;-- continue
-					;if res <= EVT_DISPATCH   [free-handles hWnd]	;-- done
-					if res  = EVT_NO_DISPATCH [clean-up PostQuitMessage 0]	;-- stop
-					return 0
-				]
-			]
-		]
 		WM_DESTROY [free-dc hWnd]
 		WM_DPICHANGED [
 			log-pixels-x: WIN32_LOWORD(wParam)			;-- new DPI
@@ -1682,6 +1680,9 @@ WndProc: func [
 			;	SetWindowLong hidden-hwnd wc-offset - 36 0
 			;]
 			RedrawWindow hWnd null null 4 or 1			;-- RDW_ERASE | RDW_INVALIDATE
+		]
+		WM_DISPLAYCHANGE [
+			#call [system/view/platform/refresh-screens]
 		]
 		WM_THEMECHANGED [
 			values: values + FACE_OBJ_PANE
@@ -1835,8 +1836,18 @@ process: func [
 	]
 ]
 
+flushing?: no
+
+flush-events: func [hWnd [handle!]][
+	if flushing? [exit]
+	flushing?: yes
+	until [not do-events yes hWnd]
+	flushing?: no
+]
+
 do-events: func [
 	no-wait? [logic!]
+	hWnd	 [handle!]									;-- null to catch events for all faces
 	return:  [logic!]
 	/local
 		msg	  [tagMSG value]
@@ -1845,8 +1856,7 @@ do-events: func [
 		saved [tagMSG]
 ][
 	msg?: no
-
-	unless no-wait? [exit-loop: 0]
+	unless no-wait? [loop-cnt: loop-cnt + 1]
 
 	while [
 		either no-wait? [

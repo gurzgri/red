@@ -676,7 +676,7 @@ system/view/platform: context [
 					face: face + 1
 				]
 				assert false
-			]			
+			]
 
 			#include %keycodes.reds
 			#switch GUI-engine [
@@ -702,11 +702,54 @@ system/view/platform: context [
 	make-null-handle: routine [][handle/box 0 handle/CLASS_NULL]
 
 	fetch-all-screens: routine [][
-		SET_RETURN(gui/OS-fetch-all-screens)
+		#either GUI-engine = 'terminal [
+			SET_RETURN(none-value)
+		][
+			SET_RETURN(gui/OS-fetch-all-screens)
+		]
 	]
-	
-	get-current-screen: routine [][
-		SET_RETURN(gui/OS-get-current-screen)
+
+	#either config/GUI-engine = 'terminal [
+		get-current-screen: func [][system/view/screens/1/state/1]
+	][	
+		get-current-screen: routine [][
+			SET_RETURN(gui/OS-get-current-screen)
+		]
+	]
+
+	all-windows-closed?: func [return: [logic!] /local closed? [logic!]][
+		foreach screen system/view/screens [
+			if not empty? screen/pane [return no]
+		]
+		yes
+	]
+
+	refresh-screens: has [svs spec screen][
+		svs: system/view/screens
+		foreach spec fetch-all-screens [
+			either svs/1 [
+				screen: svs/1
+				screen/offset: spec/1
+				screen/size:   to-pair spec/2 / spec/3
+				screen/data:   spec/3
+				screen/state/1: spec/4
+				
+			][
+				append svs make face! [
+					type:	'screen
+					offset: spec/1
+					size:	to-pair spec/2 / spec/3
+					data:	spec/3
+					pane:	make block! 4
+					state:	reduce [spec/4 0 none copy [1]]
+				]
+			]
+			svs: next svs
+		]
+		unless empty? svs [								;-- clean up screens for removed displays
+			foreach screen svs [clear screen/pane]
+			clear svs
+		]
 	]
 	
 	get-screen-size: routine [
@@ -818,7 +861,7 @@ system/view/platform: context [
 
 	do-event-loop: routine [no-wait? [logic!] /local bool [red-logic!]][
 		bool: as red-logic! stack/arguments
-		bool/value:  gui/do-events no-wait?
+		bool/value:  gui/do-events no-wait? null
 		bool/header: TYPE_LOGIC
 	]
 
@@ -1069,15 +1112,16 @@ system/view/platform: context [
 			]
 		]
 
-		foreach spec fetch-all-screens [
-			append svs make face! [
+		#either config/GUI-engine = 'terminal [
+			append svs make face! [						;-- default screen
 				type:	'screen
-				offset: spec/1
-				size:	to-pair spec/2 / spec/3
-				data:	spec/3
+				offset: 0x0
+				size:	get-screen-size 0
 				pane:	make block! 4
-				state:	reduce [spec/4 0 none copy [1]]
+				state:	reduce [make-null-handle 0 none copy [1]]
 			]
+		][
+			refresh-screens
 		]
 		
 		set fonts:

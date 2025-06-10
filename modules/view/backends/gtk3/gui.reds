@@ -53,6 +53,7 @@ get-face-obj: func [
 	handle		[handle!]
 	return:		[red-object!]
 ][
+	assert -1 <> as-integer g_object_get_qdata handle red-face-id
 	as red-object! references/get as integer! g_object_get_qdata handle red-face-id
 ]
 
@@ -714,7 +715,16 @@ set-dark-mode: func [
 ][
 ]
 
-init: func [][
+monitor-changed: func [
+	[cdecl]
+	display		[handle!]
+	monitor		[handle!]
+	user_data	[handle!]
+][
+	#call [system/view/platform/refresh-screens]
+]
+
+init: func [/local disp [handle!]][
 	get-os-version
 	gtk_disable_setlocale
 	gtk_init null null
@@ -728,6 +738,10 @@ init: func [][
 	set-app-theme "box, button.text-button {min-width: 1px; min-height: 1px;}" yes
 	collector/register as int-ptr! :on-gc-mark
 	font-ext-type: externals/register "font" as-integer :delete-font
+
+	disp: gdk_display_get_default
+	gobj_signal_connect(disp "monitor-added" :monitor-changed null)
+	gobj_signal_connect(disp "monitor-removed"  :monitor-changed null)
 ]
 
 get-symbol-name: function [
@@ -1654,6 +1668,7 @@ fetch-monitor-info: func [
 	s: GET_BUFFER(blk)
 
 	gdk_monitor_get_geometry hMonitor :rec
+	g_object_set_qdata hMonitor red-face-id as int-ptr! -1
 	w: gdk_monitor_get_width_mm hMonitor
 	h: gdk_monitor_get_height_mm hMonitor
 
@@ -1702,7 +1717,10 @@ OS-redraw: func [
 OS-refresh-window: func [
 	widget		[integer!]
 ][
-	if widget <> 0 [								;-- view engine should make sure a valid handle, but it not
+	if all [
+		widget <> 0									;-- view engine should make sure a valid handle, but it not
+		-1 <> as-integer g_object_get_qdata as handle! widget red-face-id
+	][
 		gtk_widget_queue_draw as handle! widget
 		set-selected-focus as handle! widget
 	]
@@ -2143,6 +2161,8 @@ OS-update-view: func [
 	state: as red-block! values + FACE_OBJ_STATE
 	word: as red-word! values + FACE_OBJ_TYPE
 	type: symbol/resolve word/symbol
+
+	if type = screen [exit]
 
 	if all [
 		type = rich-text

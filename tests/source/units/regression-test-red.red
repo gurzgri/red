@@ -3778,8 +3778,9 @@ comment {
 		--assert "[=/-/=]" = mold [=/-/=]
 		
 	--test-- "#5595"
-		loop 1e6 [put #[] random "abcdefghi" 1]
-		loop 1e6 [put #[] random copy #{acadadeefacebeedadfeed2025} 1]
+		#either config/target <> 'ARM [cnt: 1e6][cnt: 1e4]
+		loop cnt [put #[] random "abcdefghi" 1]
+		loop cnt [put #[] random copy #{acadadeefacebeedadfeed2025} 1]
 		--assert true 									;-- just check that it didn't crash
 		
 	--test-- "#5598"
@@ -3790,7 +3791,17 @@ comment {
 		a5607: copy []
 		forall a5607 [--assert false]
 		--assert true
-	
+
+	--test-- "#5609"
+		saved-dir: what-dir
+		change-dir qt-tmp-dir
+		make-dir d5609: %123456789_123
+		change-dir d5609
+		--assert string? to-local-file/full %1
+		change-dir %../
+		delete d5609
+		change-dir saved-dir
+
 ===end-group===
 
 ~~~end-file~~~

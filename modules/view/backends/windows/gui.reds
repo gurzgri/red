@@ -64,6 +64,7 @@ Red/System [
 ]
 #include %comdlgs.reds
 
+loop-cnt:		0
 exit-loop:		0
 process-id:		0
 border-width:	0
@@ -116,7 +117,7 @@ dpi-scale: func [
 	num		[float32!]
 	return: [integer!]
 ][
-	as-integer num * dpi-factor
+	as-integer num * dpi-factor + 0.5
 ]
 
 dpi-unscale: func [
@@ -702,6 +703,7 @@ free-faces: func [
 
 	if null? handle [exit]
 
+	;flush-events handle
 	values: object/get-values face
 	type: as red-word! values + FACE_OBJ_TYPE
 	sym: symbol/resolve type/symbol
@@ -1509,6 +1511,7 @@ OS-fetch-all-screens: func [
 	return: [red-block!]
 	/local blk [red-block!]
 ][
+	monitor-tail: monitors								;-- reset monitor handles array
 	blk: block/push-only* 2
 	EnumDisplayMonitors null null :monitor-enum-proc blk
 	blk
@@ -2854,7 +2857,7 @@ OS-destroy-view: func [
 	free-faces face yes
 	if empty? [
 		exit-loop: exit-loop + 1
-		PostQuitMessage 0
+		loop-cnt: loop-cnt - 1
 	]
 ]
 

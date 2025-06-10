@@ -7,27 +7,33 @@ context [
 	list: []
 	
 	draw-displays: function [parent [object!]][
-		bound: (0,0)
-		foreach s system/view/screens [
-			s-off: s/offset * s/data
-			s-size: s/size * s/data
+		bound: low: (0,0)
+		foreach s system/view/screens [					;-- gather all screens offset and size
+			s-off: s/offset * s/data					;-- multiply by screen scaling factor (to get a DPI-independent value)
+			s-size: s/size * s/data						;-- multiply by screen scaling factor (to get a DPI-independent value)
 			repend list [s-off s-size s/data]
-			bound: max bound s-off + s-size
+			bound: max bound s-off + s-size				;-- calculate maximum bounding box for all screens
+			low: min low s-off							;-- calculate lowest negative offset
 		]
 
-		ratio: bound/x / (parent/size/x - 20)
-		off-y: parent/size/y - (bound/y / ratio) / 2
+		bound: bound + low: absolute low				;-- translate coordinates, makes lowest offset the origin
+		ratio: bound/x / (parent/size/x - 20)			;-- calculate X/Y ratio with container face with a padding of 20
+		off-y: parent/size/y - (bound/y / ratio) / 2	;-- calculate the Y offset to center vertically
 		parent/pane: make block! length? list
-		c: 0
+		c: 1											;-- screen ID (incremented)
+
 		foreach [s-off s-size scaling] list [
-			append parent/pane face: make-face 'base
-			face/offset: s-off / ratio + as-pair 10 off-y
-			face/size:   s-size / ratio
-			face/color:  cyan
-			face/text:   form c: c + 1
-			face/font:   make font! [size: 12 style: 'bold]
-			
+			append parent/pane make face! [				;-- build a screen face for each monitor
+				type:   'base
+				offset: s-off + low / ratio + as-pair 10 off-y ;-- translate original screen offset, scale it to ratio, adds an X padding of 10
+				size:   s-size / ratio					;-- scaled size
+				color:  cyan
+				text:   form c
+				font:   make font! [size: 12 style: 'bold]
+				draw:   compose [pen blue box (0x0) (size - 1x1)] ;-- border line around the screen
+			]
 			print [c "- offset:" s-off "size:" s-size "scaling:" to-percent scaling]
+			c: c + 1
 		]
 	]
 
