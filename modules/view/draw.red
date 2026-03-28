@@ -91,8 +91,17 @@ Red/System [
 			cmds   [red-block!]
 			cmd	   [red-value!]
 			catch? [logic!]
+			/local
+				blk	   [red-block!]
+				cycle? [logic!]
 		][
-			_throw-draw-error cmds cmd TO_ERROR(script invalid-draw) catch?
+			blk: as red-block! cmd
+			cycle?: all [TYPE_OF(cmd) = TYPE_BLOCK cmds/node = blk/node]
+			either cycle? [
+				_throw-draw-error cmds cmd TO_ERROR(script draw-infinite) catch? cycle?
+			][
+				_throw-draw-error cmds cmd TO_ERROR(script draw-invalid) catch? cycle?
+			]
 		]
 
 		_throw-draw-error: func [
@@ -101,17 +110,19 @@ Red/System [
 			cat    [red-value!]
 			id	   [red-value!]
 			catch? [logic!]
+			cycle? [logic!]
 			/local
-				silent [red-logic!]
 				base   [red-value!]
+				silent [red-logic!]
 		][
-			if cycles/find? cmds/node [cycles/reset]
+			cycles/reset
 			silent: as red-logic! #get system/view/silent?
 			if all [TYPE_OF(silent) = TYPE_LOGIC silent/value][throw 1]
 			
 			base: block/rs-head cmds
 			cmds: as red-block! stack/push as red-value! cmds
-			cmds/head: (as-integer cmd - base) >> 4
+			unless cycle? [cmds/head: (as-integer cmd - base) >> 4]
+			assert cmds/head >= 0
 			either catch? [
 				report cat id as red-value! cmds null null
 				throw RED_THROWN_ERROR
@@ -743,7 +754,6 @@ Red/System [
 				inset?	[logic!]
 		][
 			if cycles/find? cmds/node [throw-draw-error cmds as red-value! cmds catch?]
-
 			cycles/push cmds/node
 
 			cmd:  block/rs-head cmds
@@ -892,7 +902,7 @@ Red/System [
 									]
 								]
 								if 0 <> OS-draw-image DC as red-image! start point end color border? crop-s pattern [
-									_throw-draw-error cmds start TO_ERROR(internal no-memory) catch?
+									_throw-draw-error cmds start TO_ERROR(internal no-memory) catch? no
 								]
 							]
 							sym = _shadow [
@@ -1065,12 +1075,10 @@ Red/System [
 								ncmds: as red-block! start
 								ncmd:  block/rs-head ncmds
 								ntail: block/rs-tail ncmds
-								if ncmd + 6 <> ntail [
-									throw-draw-error ncmds ncmd catch?
-								]
+								if ncmd + 6 <> ntail [throw-draw-error cmds cmd - 1 catch?]
 								loop 6 [
 									if any [ncmd >= ntail all [TYPE_OF(ncmd) <> TYPE_INTEGER TYPE_OF(ncmd) <> TYPE_FLOAT]][
-										throw-draw-error ncmds ncmd catch?
+										throw-draw-error cmds cmd - 1 catch?
 									]
 									ncmd: ncmd + 1
 								]
@@ -1096,6 +1104,7 @@ Red/System [
 					]
 					default [throw-draw-error cmds cmd catch?]
 				]
+				assert cmd >= block/rs-head cmds
 				cmd: cmd + 1
 			]
 

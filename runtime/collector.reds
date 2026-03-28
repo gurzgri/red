@@ -317,6 +317,15 @@ collector: context [
 		]
 	]
 	
+	refresh-array: func [p [node!] end [node!] /local new [node!]][
+		while [p < end][
+			;probe ["p: " p ", node: " as int-ptr! p/value]
+			new: _hashtable/rs-get refs p/value
+			if new <> null [prin "." p/value: new/value]
+			p: p + 1
+		]
+	]
+	
 	keep: func [
 		ptr		[int-ptr!]
 		return: [logic!]								;-- TRUE if newly marked, FALSE if already done
@@ -799,7 +808,6 @@ collector: context [
 	]
 
 	scan-stack-refs: func [
-		table  [int-ptr!]								;-- optional table for nodes relocation
 		store? [logic!]									;-- store series pointers in a list for later eventual update
 		/local
 			frm	map	slot p sp b base base' head prev [int-ptr!]
@@ -1033,8 +1041,8 @@ collector: context [
 		
 		#if debug? = yes [if verbose > 1 [probe "scanning native stack"]]
 		frames-list/rebuild								;-- refresh nodes and series frames list
-		scan-stack-refs refs yes
-
+		scan-stack-refs yes
+		if refs <> null [cycles/refresh]
 		#if debug? = yes [tm1: (platform/get-time yes yes) - tm]	;-- marking time
 
 		#if debug? = yes [if verbose > 1 [probe "sweeping..."]]
