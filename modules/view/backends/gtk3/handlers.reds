@@ -665,15 +665,31 @@ window-configure-event: func [
 	/local
 		x		[integer!]
 		y		[integer!]
+		fx fy	[float32!]
 		offset	[red-pair!]
+		values	[red-value!]
+		pos		[red-point2D!]
+		ox oy	[integer!]
 ][
-	x: 0 y: 0
-	gtk_window_get_position widget :x :y
-	offset: (as red-pair! get-face-values widget) + FACE_OBJ_OFFSET
-	offset/x: x
-	offset/y: y
 	unless null? GET-STARTRESIZE(widget) [
 		SET-RESIZING(widget widget)
+	]
+	values: get-face-values widget
+	if values <> null [
+		x: 0 y: 0
+		gtk_window_get_position widget :x :y
+		offset: as red-pair! values + FACE_OBJ_OFFSET
+		fx: dpi-unscale as float32! x
+		fy: dpi-unscale as float32! y
+		either TYPE_OF(offset) = TYPE_POINT2D [
+			pos: as red-point2D! offset
+			pos/x: fx
+			pos/y: fy
+		][
+			offset/x: as-integer fx
+			offset/y: as-integer fy
+		]
+		make-event widget 0 EVT_MOVING
 	]
 	EVT_DISPATCH
 ]
@@ -770,6 +786,8 @@ range-value-changed: func [
 	pos: as red-float! values + FACE_OBJ_DATA
 
 	value: gtk_range_get_value range
+	;-- ensure data is percent/float type before setting value
+	if all [TYPE_OF(pos) <> TYPE_PERCENT TYPE_OF(pos) <> TYPE_FLOAT][pos/header: TYPE_PERCENT]
 	pos/value: value / 100.0
 	make-event range 0 EVT_CHANGE
 ]
