@@ -224,8 +224,7 @@ odbc: context [
 			TO_ERROR(internal no-memory)
 		]]
 
-		copy-cell as red-value! handle/box sqlhenv 0
-		          venv + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-henv/value = " sqlhenv lf]]
+		handle/make-at venv + odbc/cmnfld-handle sqlhenv 0                      #if debug? = yes [print ["^-henv/value = " sqlhenv lf]]
 
 																				#if debug? = yes [print ["^-SQLSetEnvAttr "]]
 		ODBC_RESULT((sql/SQLSetEnvAttr sqlhenv
@@ -530,8 +529,7 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 
-		copy-cell as red-value! handle/box sqlhcon 0
-		          vcon + odbc/cmnfld-handle                                     #if debug? = yes [print ["^-hcon/value = " sqlhcon lf]]
+		handle/make-at vcon + odbc/cmnfld-handle sqlhcon 0                      #if debug? = yes [print ["^-hcon/value = " sqlhcon lf]]
 
 		if TYPE_OF(timeout) = TYPE_INTEGER [
 			set-connection connection sql/attr-login-timeout
@@ -877,8 +875,7 @@ odbc: context [
 			as red-block! vcon + odbc/cmnfld-errors
 		]]
 																				#if debug? = yes [print ["^-hstm/value = " sqlhstm lf]]
-		copy-cell as red-value! handle/box sqlhstm 0
-		          vstm + odbc/cmnfld-handle
+		handle/make-at vstm + odbc/cmnfld-handle sqlhstm 0
 																				#if debug? = yes [print ["]" lf]]
 	]
 
@@ -1110,8 +1107,7 @@ odbc: context [
 			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
 		]]
 
-		copy-cell as red-value! integer/box index
-		          vcsr + odbc/csrfld-position
+		integer/make-at vcsr + odbc/csrfld-position index
 																				#if debug? = yes [print ["]" lf]]
 	]
 
@@ -2491,8 +2487,7 @@ odbc: context [
 				row: row + 1
 			] ; loop rows
 
-			copy-cell as red-value! integer/box rows                             ;-- FIXME: in fact, this belongs into cursor/state
-			          vstm + odbc/stmfld-fetched
+			integer/make-at vstm + odbc/stmfld-fetched rows                     ;-- FIXME: in fact, this belongs into cursor/state
 
 			unless sym = odbc/_all [break]
 		]
