@@ -490,6 +490,19 @@ port: context [
 		stack/push allow
 		call-function actors words/_open
 	]
+
+	open?: func [
+		port	[red-object!]
+		/local
+			actors [red-object!]
+	][
+		#if debug? = yes [if verbose > 0 [print-line "port/open?"]]
+
+		actors: get-actors port
+		stack/mark-func words/_open? actors/ctx
+		stack/push as red-value! port
+		call-function actors words/_open?
+	]
 	
 	poke: func [
 		port	[red-object!]
@@ -865,7 +878,7 @@ port: context [
 			:delete
 			:modify
 			:open
-			null			;open?
+			:open?
 			:query
 			:read
 			:rename

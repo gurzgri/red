@@ -852,6 +852,7 @@ words: context [
 	
 	;-- I/O actions
 	_open:			as red-word! 0
+	_open?:			as red-word! 0
 	_create:		as red-word! 0
 	_close:			as red-word! 0
 	_delete:		as red-word! 0
@@ -1136,6 +1137,7 @@ words: context [
 		
 		;-- I/O actions
 		_open:			word/load "open"
+		_open?:			word/load "open?"
 		_create:		word/load "create"
 		_close:			word/load "close"
 		_delete:		word/load "delete"
