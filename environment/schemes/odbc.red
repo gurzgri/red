@@ -2127,10 +2127,7 @@ odbc: context [
 		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
-		status: handle/box as integer! row-buf 0                                #if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
-
-		copy-cell as red-value! status                                          ;-- store pointer in statement
-		          vstm + odbc/stmfld-status                                     ;
+		handle/make-at vstm + odbc/stmfld-status as integer! row-buf 0
 
 		;-- statement attributes
 
