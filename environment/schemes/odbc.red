@@ -47,12 +47,17 @@ odbc: context [
 					none? new [0]
 					all [integer? new positive? new] [new]
 					all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
-					/else [timeout: old cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]]
+					/else [
+						set-quiet word old
+						cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]
+					]
 				]]
-				flat? [unless logic? new [flat?: old
+				flat? [unless logic? new [
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'flat? logic!]
 				]]
-				names? [unless logic? new [names?: old
+				names? [unless logic? new [
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'names? logic!]
 				]]
 			][
@@ -79,21 +84,21 @@ odbc: context [
 				catalog [either string? new [
 					use-catalog self new
 				][
-					catalog: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'catalog string!]
 				]]
 				commit? [either logic? new [
 					set-commit-mode self new
 				][
-					commit?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'commit? logic!]
 				]]
 				flat? [unless find [logic! none!] type?/word new [
-					flat?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
 				]]
 				names? [unless find [logic! none!] type?/word new [
-					names?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'names? [logic! | none!]]
 				]]
 			][
@@ -132,25 +137,25 @@ odbc: context [
 				access [either find [default forward static dynamic keyset] new [
 					set-access self new
 				][
-					access: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'access? ['default | 'forward | 'static | 'dynamic | 'keyset ]]
 				]]
 				bookmarks? [either logic? new [
 					set-bookmarks self new
 				][
-					bookmarks?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'bookmarks? logic!]
 				]]
 				flat? [unless find [logic! none!] type?/word new [
-					flat?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'flat? [logic! | none!]]
 				]]
 				names? [unless find [logic! none!] type?/word new [
-					names?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'names? [logic! | none!]]
 				]]
 				debug? [unless logic? new [
-					debug?: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'debug? logic!]
 				]]
 				timeout [set-query-timeout self case [
@@ -158,20 +163,20 @@ odbc: context [
 					all [integer? new positive? new] [new]
 					all [time?    new positive? new] [round/to (new/hour * 3600) + (new/minute * 60) + new/second 1]
 					/else [
-						timeout: old
+						set-quiet word old
 						cause-error 'script 'expect-type ['the 'timeout [not negative? [integer! | time!] | none!]]
 					]
 				]]
 				window [either all [integer? new positive? new] [if old <> new [
 					free-columns self
 				]][
-					window: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'window [not negative? integer!]]
 				]]
 				limit [either any [all [integer? new positive? new] none? new] [if old <> new [
 					;-- todo
 				]][
-					limit: old
+					set-quiet word old
 					cause-error 'script 'expect-type ['the 'limit [none! | not negative? integer!]]
 				]]
 			][
