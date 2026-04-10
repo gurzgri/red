@@ -557,14 +557,11 @@ odbc: context [
 
 		ODBC_DIAGNOSIS(sql/handle-dbc sqlhcon connection)
 
-		block/rs-append-block as red-block! venv + odbc/cmnfld-errors
-		                      as red-block! vcon + odbc/cmnfld-errors
-
 		if ODBC_INVALID [fire [
 			TO_ERROR(script invalid-arg) connection
 		]]
 		if ODBC_ERROR [fire [
-			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vcon + odbc/cmnfld-errors
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! venv + odbc/cmnfld-errors
 		]]
 																				#if debug? = yes [print ["]" lf]]
 	]
