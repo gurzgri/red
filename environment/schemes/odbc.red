@@ -4419,6 +4419,7 @@ odbc: context [
 				1 <= row: port/state/position + rows
 				row <= length? port
 				set-cursor port/state/statement row
+				port
 			]]
 		]
 	]
@@ -4440,6 +4441,7 @@ odbc: context [
 				1 <= row
 				row <= length? port
 				set-cursor port/state/statement row
+				port
 			]]
 		]
 	]
@@ -4458,6 +4460,7 @@ odbc: context [
 			]
 			cursor [
 				set-cursor port/state/statement 1
+				port
 			]
 		]
 	]
@@ -4494,6 +4497,7 @@ odbc: context [
 			cursor [
 				if 1 < row: port/state/position [
 					set-cursor port/state/statement row - 1
+					port
 				]
 			]
 		]
@@ -4514,6 +4518,7 @@ odbc: context [
 			cursor [
 				if (row: port/state/position) < length? port [
 					set-cursor port/state/statement row + 1
+					port
 				]
 			]
 		]
@@ -4533,6 +4538,7 @@ odbc: context [
 			]
 			cursor [
 				set-cursor port/state/statement length? port
+				port
 			]
 		]
 	]
