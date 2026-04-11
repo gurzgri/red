@@ -3100,6 +3100,14 @@ comment {
 		err4260: try [add none none]
 		--assert to-logic find form err4260 "add does not"
 
+	--test-- "#4281"
+		data4281: "   123   "
+		repend data4281 [trim data4281]
+		--assert data4281 = "123123"
+		data4281: "   123   "
+		insert tail data4281 reduce [trim data4281]
+		--assert data4281 = "123123"
+
 	--test-- "#4299"
 		foreach v reduce [
 			system system/words system/lexer system/build
@@ -3837,6 +3845,14 @@ comment {
 		--assert $10 == make money! "10"
 		--assert $0.01 == make money! "0.01"
 		--assert $0.01 == make money! "$0.01"
+		
+	--test-- "#5724"
+		register-scheme make system/standard/scheme [name: 'debug title: "DEBUG" actor: context [
+			open: function [port] [port/state: 'open port]
+			insert: function [port value] [port/state: value port]
+		]]
+		insert open debug:// "crash"
+		--assert true									;-- just check that it didn't crash
 		
 ===end-group===
 
