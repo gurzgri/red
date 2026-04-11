@@ -1989,43 +1989,51 @@ odbc: context [
 																				#if debug? = yes [print ["^-nam-len = " nam-len ", name = "]]
 																				#if debug? = yes [odbc/print-wstring nam-buf nam-len]
 																				#if debug? = yes [print [", sql-type = " sql-type ", col-size = " col-size ", digits = " digits ", nullable = " nullable lf]]
+			if col-size < 0 [col-size: limit]
 			case [
 				zero? col [
 					c-type:      sql/c-varbookmark
 					col-slotlen: col-size
 				]
-				sql-type = sql/wlongvarchar [
-					c-type:      sql/c-wchar
-					col-slotlen: either zero? limit [0] [limit + 1 << 1]        ;-- or defer to SQLGetData
+				any [
+					sql-type = sql/longvarbinary
+					sql-type = sql/varbinary
+					sql-type = sql/binary
+				][
+					c-type:      sql/c-binary
+					col-slotlen: case [
+						limit < col-size [limit]
+						true [col-size]
+					]
 				]
 				any [
-					sql-type = sql/wchar
+					sql-type = sql/wlongvarchar
 					sql-type = sql/wvarchar
+					sql-type = sql/wchar
 				][
 					c-type:      sql/c-wchar
-					col-slotlen: col-size + 1 << 1
-				]
-				sql-type = sql/longvarchar [
-					c-type:      sql/c-wchar
-					col-slotlen: limit                                          ;-- or defer to SQLGetData
+					col-slotlen: case [
+						zero? col-size [0]
+						limit < col-size [limit + 1 << 1] 
+						true [col-size + 1 << 1]
+					]
 				]
 				any [
-					sql-type = sql/char
+					sql-type = sql/longvarchar
 					sql-type = sql/varchar
+					sql-type = sql/char
 				][
 					c-type:      sql/c-wchar
-					col-slotlen: col-size + 1 << 1
-				]
-				any [
-					sql-type = sql/decimal
-					sql-type = sql/numeric
-				][
-					c-type:      sql/c-char
-					col-slotlen: col-size + 1
+					col-slotlen: case [
+						zero? col-size [0]
+						limit < col-size [limit + 1 << 1] 
+						true [col-size + 1 << 1]
+					]
 				]
 				any [
 					sql-type = sql/smallint
 					sql-type = sql/integer
+					sql-type = sql/tinyint
 				][
 					c-type:      sql/c-long
 					col-slotlen: size? integer!
@@ -2042,10 +2050,6 @@ odbc: context [
 					c-type:      sql/c-bit
 					col-slotlen: 1
 				]
-				sql-type = sql/tinyint [
-					c-type:      sql/c-long
-					col-slotlen: size? integer!
-				]
 				sql-type = sql/type-date [
 					c-type:      sql/c-type-date
 					col-slotlen: 6                                              ;-- FIXME: size? sql-date!
@@ -2058,11 +2062,11 @@ odbc: context [
 					c-type:      sql/c-type-timestamp
 					col-slotlen: size? sql-timestamp!
 				]
-				sql-type = sql/guid [
-					c-type:      sql/c-char
-					col-slotlen: col-size + 1
-				]
 				any [
+					sql-type = sql/numeric
+					sql-type = sql/decimal
+					sql-type = sql/guid
+					sql-type = sql/bigint
 					sql-type = sql/interval-year
 					sql-type = sql/interval-year-to-month
 					sql-type = sql/interval-month
@@ -2080,24 +2084,12 @@ odbc: context [
 					c-type:      sql/c-char
 					col-slotlen: col-size + 1
 				]
-				sql-type = sql/bigint [
-					c-type:      sql/c-char
-					col-slotlen: col-size + 1
-				]
-				sql-type = sql/longvarbinary [
-					c-type:      sql/c-binary
-					col-slotlen: limit                                          ;-- or defer to SQLGetData
-				]
-				any [
-					sql-type = sql/varbinary
-					sql-type = sql/binary
-				][
-					c-type:      sql/c-binary
-					col-slotlen: col-size
-				]
 				true [
-					c-type:      sql/c-wchar
-					col-slotlen: col-size + 1
+					c-type:      sql/c-binary
+					col-slotlen: case [
+						limit < col-size [limit]
+						true [col-size]
+					]
 				]
 			]
 																				#if debug? = yes [print ["^-c-type = " c-type ", col-slotlen = " col-slotlen lf]]
@@ -2205,11 +2197,7 @@ odbc: context [
 			copy-cell as red-value! handle/box as integer! len-buf 0
 			          block/rs-abs-at columns offset + odbc/colfld-lenbuf
 
-			unless all [zero? limit any [
-				sql-type = sql/wlongvarchar                                     ;-- skip binding for deferred columns for
-				sql-type = sql/longvarchar                                      ;   drivers w/o GetData Extensions
-				sql-type = sql/longvarbinary
-			]] [                                                                #if debug? = yes [print ["^-SQLBindCol "]]
+			unless zero? col-slotlen [                                          #if debug? = yes [print ["^-SQLBindCol "]]
 				ODBC_SHIELD((sql/SQLBindCol hstm/value
 				                            col
 				                            c-type
@@ -2395,22 +2383,25 @@ odbc: context [
 
 					case [
 						any [
-							sql-type = sql/wvarchar
-							sql-type = sql/varchar
-							sql-type = sql/wchar
-							sql-type = sql/char
-						][
-							string/load-in as c-string! col-slot len-slot/value >> 1 rowblk UTF-16LE
-						]
-						any [
 							sql-type = sql/wlongvarchar
-							sql-type = sql/longvarchar
+							sql-type = sql/wvarchar
+							sql-type = sql/wchar
 						][
-							either zero? limit [
+							either zero? col-size [
 								word/push-in odbc/_deferred rowblk
 							][
-								len: either len-slot/value >> 1 > limit [limit] [len-slot/value >> 1]
-								string/load-in as c-string! col-slot len rowblk UTF-16LE
+								string/load-in as c-string! col-slot len-slot/value >> 1 rowblk UTF-16LE
+							]
+						]
+						any [
+							sql-type = sql/longvarchar
+							sql-type = sql/varchar
+							sql-type = sql/char
+						][
+							either zero? col-size [
+								word/push-in odbc/_deferred rowblk
+							][
+								string/load-in as c-string! col-slot len-slot/value >> 1 rowblk UTF-16LE
 							]
 						]
 						any [
@@ -2444,22 +2435,25 @@ odbc: context [
 						sql-type = sql/bigint [
 							string/load-in as c-string! col-slot len-slot/value rowblk UTF-8
 						]
-						sql-type = sql/longvarbinary [                          ;-- NOTE: this test is order dependent and must happen
-						                                                        ;         before the `c-type = sql/c-varbookmark` test
-							either zero? limit [                                ;         (because sql/c-varbookmark = sql/c-binary)
-								word/push-in odbc/_deferred rowblk
-							][
-								len: either limit < len-slot/value [limit] [len-slot/value]
-								binary/load-in col-slot len rowblk
-							]
-						]
+					;	sql-type = sql/longvarbinary [                          ;-- NOTE: this test is order dependent and must happen
+					;	                                                        ;         before the `c-type = sql/c-varbookmark` test
+					;		either zero? limit [                                ;         (because sql/c-varbookmark = sql/c-binary)
+					;			word/push-in odbc/_deferred rowblk
+					;		][
+					;			len: either limit < len-slot/value [limit] [len-slot/value]
+					;			binary/load-in col-slot len rowblk
+					;		]
+					;	]
 						any [
-							c-type = sql/c-varbookmark
+							  c-type = sql/c-varbookmark
+							sql-type = sql/longvarbinary
 							sql-type = sql/varbinary
 							sql-type = sql/binary
 						][
-							either len-slot/value > col-slotlen [               ;-- FIXME: discovered first with SQLite driver with BLOB col-size = 255
-								binary/load-in col-slot col-slotlen    rowblk
+					;		either len-slot/value > col-slotlen [               ;-- FIXME: discovered first with SQLite driver with BLOB col-size = 255
+					;			binary/load-in col-slot col-slotlen    rowblk
+							either zero? col-size [
+								word/push-in odbc/_deferred rowblk
 							][
 								binary/load-in col-slot len-slot/value rowblk
 							]
@@ -2523,8 +2517,12 @@ odbc: context [
 							string/load-in as c-string! col-slot len-slot/value rowblk UTF-8
 						]
 						true [
-							string/load-in as c-string! col-slot len-slot/value rowblk UTF-16LE
 																				#if debug? = yes [print ["^-DEFAULT sql-type handler" lf]]
+							either zero? col-size [
+								word/push-in odbc/_deferred rowblk
+							][
+								binary/load-in col-slot len-slot/value rowblk
+							]
 						]
 					]
 
