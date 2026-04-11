@@ -129,7 +129,7 @@ odbc: context [
 		debug?:         off
 		timeout:        none
 		position:       none
-		limit:          8162
+		limit:          1024
 		length:         none                                                    ;-- number of rows in result set
 
 		on-change*: func [word old new] [
