@@ -2839,7 +2839,7 @@ odbc: context [
 		all [
 			zero? environment/count
 			open-environment environment
-			set-quiet environment 'count environment/count + 1
+			set-quiet in environment 'count environment/count + 1
 		]
 																				if debug-odbc? [print ["^-init-odbc:" environment/count]]
 		exit
