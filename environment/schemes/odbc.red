@@ -1076,6 +1076,49 @@ odbc: context [
 	]
 
 
+	;---------------------------------- get-statement --
+	;
+
+	get-statement: routine [
+		statement       [object!]
+		attribute       [integer!]
+		/local
+			attr-buf    [byte-ptr!]
+			attr-buflen [integer!]
+			attr-len    [integer!]
+			attr-val    [integer!]
+			hstm        [red-handle!]
+			rc          [integer!]
+			vstm        [red-value!]
+	][                                                                          #if debug? = yes [print ["GET-STATEMENT [" lf]]
+		vstm: object/get-values statement
+		hstm: as red-handle! vstm + odbc/cmnfld-handle
+
+		attr-val:       0
+		attr-buf:       as byte-ptr! :attr-val
+		attr-buflen:    4
+		attr-len:       0
+
+																				#if debug? = yes [print ["^-SQLGetStmtAttr "]]
+		ODBC_SHIELD((sql/SQLGetStmtAttr hstm/value
+		                                attribute
+		                                attr-buf
+		                                attr-buflen
+		                               :attr-len))
+
+		ODBC_DIAGNOSIS(sql/handle-stmt hstm/value statement)
+
+		if ODBC_INVALID [fire [
+			TO_ERROR(script invalid-arg) statement
+		]]
+		if any [ODBC_ERROR ODBC_EXECUTING] [fire [
+			TO_ERROR(script bad-bad) odbc/__odbc as red-block! vstm + odbc/cmnfld-errors
+		]]
+
+		SET_RETURN((integer/box attr-val))                                      #if debug? = yes [print ["]" lf]]
+	]
+
+
 	;------------------------------------- set-cursor --
 	;
 
@@ -4241,6 +4284,10 @@ odbc: context [
 					]
 
 					execute-statement port/state
+					set-quiet in port/state 'access any [                       ;-- sql/attr-cursor-type
+						select [0 forward 1 keyset 2 dynamic 3 static] get-statement port/state 6
+						'forward
+					]
 					describe-result port/state
 				]
 				/else [
