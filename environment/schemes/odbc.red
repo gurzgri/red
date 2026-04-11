@@ -2163,8 +2163,9 @@ odbc: context [
 		columns:   as red-block! vstm + odbc/stmfld-columns
 		value:                   vstm + odbc/stmfld-limit
 		limit: either TYPE_OF(value) = TYPE_NONE [0] [integer/get value]
-																				#if debug? = yes [print ["^-allocate row-buf, " (window * size? integer!) >> 1 " bytes"]]
+																				#if debug? = yes [print ["^-allocate row-buf, " (window * size? integer!) >> 1 " bytes "]]
 		row-buf:    𝐀llocate (window * size? integer!) >> 1                     ;-- NOTE: unpadded buffer of 16bit smallints!
+																				#if debug? = yes [print [" @ " row-buf " " either row-buf <> null ["ok."] ["failed!"] lf]]
 		if row-buf = null [fire [
 			TO_ERROR(internal no-memory)
 		]]
