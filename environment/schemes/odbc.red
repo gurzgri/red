@@ -2873,7 +2873,10 @@ odbc: context [
 		set-quiet in statement 'cols   count-columns statement
 
 		unless statement/cols [
-			return statement/length                                             ;-- exit early with # rows
+			return all [
+				statement/length <> -1
+				statement/length                                                ;-- exit early with # rows
+			]
 		]
 
 		set-quiet in statement 'columns columns: describe-columns statement
